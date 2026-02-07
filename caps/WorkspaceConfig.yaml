@@ -1,0 +1,43 @@
+
+extends:
+ - "./WorkspaceShell.yaml"
+
+"#@stream44.studio/t44/structs/WorkspaceCliConfig.v0":
+  javascript:
+    api:
+      workspaceDir: resolve('${__dirname}/..')
+  cli:
+    commands:
+      activate:
+        capsule: "@stream44.studio/t44/caps/WorkspaceShell.v0"
+        description: "Generate environment variables for sourcing into shells."
+      deploy:
+        capsule: "@stream44.studio/t44/caps/ProjectDeployment.v0"
+        description: "Deploy a project to a provider."
+        arguments:
+          projectSelector:
+            optional: true
+            description: "Name of a top-level project directory in the workspace. If not specified, deploys all projects."
+        options:
+          deprovision:
+            description: "Delete the project from the provider instead of deploying it"
+      push:
+        capsule: "@stream44.studio/t44/caps/ProjectPublishing.v0"
+        description: "Publish local committed code to a remote service."
+        arguments:
+          projectSelector:
+            optional: true
+            description: "Name of a top-level project directory in the workspace. If not specified, pushes all repositories."
+        options:
+          rc:
+            description: "Release candidate mode"
+          release:
+            description: "Remove release candidate suffix and publish release version"
+          dangerously-reset-main:
+            description: "Reset the git repository and force push to remote"
+      info:
+        capsule: "@stream44.studio/t44/caps/WorkspaceInfo.v0"
+        description: "Display information about the workspace."
+        options:
+          full:
+            description: "Show full details instead of compact view"

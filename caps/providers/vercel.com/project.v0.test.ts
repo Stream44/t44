@@ -1,0 +1,108 @@
+#!/usr/bin/env bun test
+
+export const testConfig = {
+    group: 'vendor',
+    runOnAll: false,
+}
+
+import * as bunTest from 'bun:test'
+import { run } from '../../../workspace-rt'
+
+const {
+    test: { describe, it, expect },
+    project
+} = await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
+    const spine = await encapsulate({
+        '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
+            '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
+            '#': {
+                test: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceTest.v0',
+                    options: {
+                        '#': {
+                            bunTest,
+                            env: {
+                                VERCEL_TOKEN: { factReference: '@stream44.studio/t44/structs/providers/vercel.com/WorkspaceConnectionConfig.v0:apiToken' },
+                                VERCEL_TEAM: { factReference: '@stream44.studio/t44/structs/providers/vercel.com/WorkspaceConnectionConfig.v0:team' }
+                            }
+                        }
+                    }
+                },
+                project: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: './project.v0'
+                },
+            }
+        }
+    }, {
+        importMeta: import.meta,
+        importStack: makeImportStack(),
+        capsuleName: '@stream44.studio/t44/caps/providers/vercel.com/project.v0.test'
+    })
+    return { spine }
+}, async ({ spine, apis }: any) => {
+    return apis[spine.capsuleSourceLineRef]
+}, {
+    importMeta: import.meta
+})
+
+describe('Vercel SDK', function () {
+
+    describe('Project Lifecycle', function () {
+
+        const testProjectName = `test-t44-vercel-api`
+
+        it('ensureDeleted()', async function () {
+
+            await project.ensureDeleted({
+                name: testProjectName,
+            })
+        }, 30_000)
+
+        it('get()', async function () {
+
+            const result = await project.get({
+                name: testProjectName,
+            })
+
+            expect(result).toBeNull()
+        })
+
+        it('ensureCreated()', async function () {
+
+            const result = await project.ensureCreated({
+                name: testProjectName,
+            })
+
+            expect(result).toBeObject()
+            expect(result.id).toBeString()
+        }, 30_000)
+
+        it('get()', async function () {
+
+            const result = await project.get({
+                name: testProjectName,
+            })
+
+            expect(result).toBeObject()
+            expect(result.id).toBeString()
+        })
+
+        it('ensureDeleted()', async function () {
+
+            await project.ensureDeleted({
+                name: testProjectName,
+            })
+        }, 30_000)
+
+        it('get()', async function () {
+
+            const result = await project.get({
+                name: testProjectName,
+            })
+
+            expect(result).toBeNull()
+        })
+    })
+})

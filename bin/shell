@@ -1,0 +1,27 @@
+#!/usr/bin/env bun
+
+import { run } from '../workspace-rt'
+
+await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
+    const spine = await encapsulate({
+        '#@encapsulate.dev/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
+            '#@encapsulate.dev/encapsulate/structs/Capsule.v0': {},
+            '#': {
+                cli: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@workspace.foundation/t44/caps/WorkspaceShellCli.v0'
+                },
+            }
+        }
+    }, {
+        importMeta: import.meta,
+        importStack: makeImportStack(),
+        capsuleName: '@workspace.foundation/t44/.workspace/bin/shell'
+    })
+    return { spine }
+}, async ({ spine, apis }: any) => {
+
+    const runCli = await apis[spine.capsuleSourceLineRef].cli.runCli
+
+    await runCli(process.argv)
+})

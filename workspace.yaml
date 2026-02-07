@@ -1,0 +1,5 @@
+
+extends:
+ - ./caps/WorkspaceConfig.yaml
+
+# Configure your workspace here
