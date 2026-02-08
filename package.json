@@ -6,7 +6,6 @@
         "type": "git",
         "url": "git+https://github.com/Stream44/t44.git"
     },
-    "private": true,
     "type": "module",
     "bin": {
         "t44": "./bin/t44"
