@@ -61,5 +61,8 @@
         cmd: |
           cd "${F_WORKSPACE_DIR}"
 
+      dev:
+        cliCommand: "dev"
+
       deploy:
         cliCommand: "deploy"

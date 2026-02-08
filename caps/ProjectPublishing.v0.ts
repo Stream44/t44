@@ -3,6 +3,7 @@ import { join } from 'path'
 import { $ } from 'bun'
 import { mkdir, access, readFile, writeFile } from 'fs/promises'
 import { constants } from 'fs'
+import glob from 'fast-glob'
 import chalk from 'chalk'
 
 export async function capsule({
@@ -22,6 +23,9 @@ export async function capsule({
             },
             '#t44/structs/WorkspaceRepositories.v0': {
                 as: '$WorkspaceRepositories'
+            },
+            '#t44/structs/WorkspaceMappings.v0': {
+                as: '$WorkspaceMappings'
             },
             '#': {
                 WorkspaceConfig: {
@@ -129,6 +133,7 @@ export async function capsule({
                         // Phase 1: Prepare - analyze all packages and collect metadata
                         console.log('[t44] Analyzing packages ...\n')
                         const packageMetadata: Map<string, any> = new Map()
+                        const gitMetadata: Map<string, any> = new Map()
 
                         await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
                             if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
@@ -141,8 +146,77 @@ export async function capsule({
                                     repoSourceDir
                                 })
                                 packageMetadata.set(repoName, metadata)
+                            } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing.v0') {
+                                const metadata = await this.GitRepository.prepare({
+                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
+                                    projectionDir: join(
+                                        this.WorkspaceConfig.workspaceRootDir,
+                                        '.~o/workspace.foundation/o/git-scm.com'
+                                    )
+                                })
+                                gitMetadata.set(repoName, metadata)
                             }
                         })
+
+                        // Apply package name renames from workspace mappings
+                        const mappingsConfig = await this.$WorkspaceMappings.config
+                        const publishingMappings = mappingsConfig?.mappings?.['t44/caps/providers/ProjectPublishing.v0']
+                        if (publishingMappings?.npm) {
+                            const npmRenames: Record<string, string> = publishingMappings.npm
+                            const renameEntries = Object.entries(npmRenames)
+
+                            if (renameEntries.length > 0) {
+                                // Collect all directories that need renaming (projection dirs + central source dirs)
+                                const dirsToRename: string[] = []
+
+                                for (const metadata of gitMetadata.values()) {
+                                    if (metadata.projectProjectionDir) {
+                                        dirsToRename.push(metadata.projectProjectionDir)
+                                    }
+                                }
+                                for (const metadata of packageMetadata.values()) {
+                                    if (metadata.projectProjectionDir) {
+                                        dirsToRename.push(metadata.projectProjectionDir)
+                                    }
+                                }
+                                for (const dir of centralSourceDirs.values()) {
+                                    dirsToRename.push(dir)
+                                }
+
+                                if (dirsToRename.length > 0) {
+                                    console.log('[t44] Applying package name renames ...\n')
+
+                                    for (const dir of dirsToRename) {
+                                        const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml}', {
+                                            cwd: dir,
+                                            absolute: true,
+                                            onlyFiles: true
+                                        })
+
+                                        for (const file of files) {
+                                            try {
+                                                let content = await readFile(file, 'utf-8')
+                                                let modified = false
+
+                                                for (const [workspaceName, publicName] of renameEntries) {
+                                                    const regex = new RegExp(workspaceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                                                    if (regex.test(content)) {
+                                                        content = content.replace(regex, publicName)
+                                                        modified = true
+                                                    }
+                                                }
+
+                                                if (modified) {
+                                                    await writeFile(file, content, 'utf-8')
+                                                }
+                                            } catch (e) {
+                                                // Skip files that can't be read as text
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         // Phase 2: Bump - only bump packages that have changes
                         if (rc || release) {
@@ -181,6 +255,11 @@ export async function capsule({
                             const taggedRepos = new Set<string>()
                             await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
                                 if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing.v0' && !taggedRepos.has(repoName)) {
+                                    const metadata = gitMetadata.get(repoName)
+                                    if (!metadata?.projectProjectionDir) return
+
+                                    const { projectProjectionDir } = metadata
+
                                     // Read the bumped version from the source package.json
                                     const packageJsonPath = join(repoSourceDir, 'package.json')
                                     try {
@@ -188,21 +267,6 @@ export async function capsule({
                                         const packageJson = JSON.parse(packageJsonContent)
                                         const version = packageJson.version
                                         const tag = `v${version}`
-
-                                        const originUri = providerConfig.config.RepositorySettings.origin
-                                        const projectionDir = join(
-                                            this.WorkspaceConfig.workspaceRootDir,
-                                            '.~o/workspace.foundation/o/git-scm.com'
-                                        )
-                                        const projectProjectionDir = join(projectionDir, 'repos', originUri.replace(/[@:\/]/g, '~'))
-
-                                        // Check if the projection repo exists
-                                        try {
-                                            await access(projectProjectionDir, constants.F_OK)
-                                        } catch {
-                                            // Repo not cloned yet, tagging will happen after push
-                                            return
-                                        }
 
                                         // Check if tag already exists locally or on remote
                                         const localTagCheck = await $`git tag -l ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
@@ -269,11 +333,8 @@ export async function capsule({
                             } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing.v0') {
                                 await this.GitRepository.push({
                                     config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
-                                    projectionDir: join(
-                                        this.WorkspaceConfig.workspaceRootDir,
-                                        '.~o/workspace.foundation/o/git-scm.com'
-                                    ),
-                                    dangerouslyResetMain
+                                    dangerouslyResetMain,
+                                    metadata: gitMetadata.get(repoName)
                                 })
                             } else if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
                                 await this.NpmRegistry.push({

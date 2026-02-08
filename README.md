@@ -5,7 +5,7 @@ Terminal44 Workspace Foundation
 
 The `t44` workspace foundation running on [bun](https://bun.sh) enables you to build any project of any complexity by providing fundamental capabilities needed by any modern software development toolchain & process.
 
-The primary audience is **Full-Stack JavaScript developers** looking for an *offline first, always online* home for their projects.
+The primary audience is **Full-Stack JavaScript Developers** looking for an *offline first, always online* home for their projects.
 
 **Get started with pre-built applications in a matter of minutes: [github.com/Stream44/t44-starter](https://github.com/Stream44/t44-starter)**
 
@@ -13,7 +13,7 @@ Build against a novel [PrivateData.Space](https://privatedata.space/) architectu
 
 The approach enables rapid creation & adoption of new technology by re-framing existing logic for new runtime environments. It enables model-driven development. It allows for the precipitation of logic into stable long-term thought models and implementation architectures that make teams and users happy. The approach and architecture embodied within is the result of multiple decades of active exploration.
 
-This is an **open development project** built by [Christoph](https://christoph.diy) using [Stream44.Studio](https://Stream44.Studio), *A **full-stack IDE** for building **embodied distributed systems***.
+This is an **open development project** built using [Stream44.Studio](https://Stream44.Studio), *A **full-stack IDE** for building **embodied distributed systems***.
 
 ![t44 Workspace Overview](./docs/Overview.svg)
 
@@ -65,10 +65,10 @@ Roadmap
 - Open Tools
   - [ ] [turborepo](https://turborepo.dev/)
 - Deploy to
-  - [x] [vercel.com](https://vercel.com/)
-  - [x] [bunny.net](https://bunny.net/)
-  - [x] [npmjs.com](https://npmjs.com/)
-  - [x] [github.com](https://github.com/)
+  - [x] [vercel.com](https://vercel.com/) (*partially implemented*)
+  - [x] [bunny.net](https://bunny.net/) (*partially implemented*)
+  - [x] [npmjs.com](https://npmjs.com/) (*partially implemented*)
+  - [x] [github.com](https://github.com/) (*partially implemented*)
   - [ ] [upstash.com](https://upstash.com/)
 - Supported Technologies & Protocols
   - [x] [bun.sh](https://bun.sh)

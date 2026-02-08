@@ -129,13 +129,20 @@ export async function capsule({
                             : `https://${projectName}.b-cdn.net`
                         console.log(`Public URL: ${publicUrl}`)
 
+                        // Derive upload region from the actual StorageHostname returned by the API.
+                        // Edge SSD zones use 'storage.bunnycdn.com' (no region prefix).
+                        // Standard zones use '<region>.storage.bunnycdn.com'.
+                        const storageHostname: string = storageZone.StorageHostname || ''
+                        const hostnameMatch = storageHostname.match(/^([^.]+)\.storage\.bunnycdn\.com$/)
+                        const uploadRegion = (hostnameMatch && hostnameMatch[1] !== 'storage') ? hostnameMatch[1] : undefined
+
                         console.log(`Uploading files from ${config.sourceDir} ...`)
                         await this.storage.uploadDirectory({
                             sourceDirectory: config.sourceDir,
                             destinationDirectory: '',
                             storageZoneName: projectName,
                             password: storageZone.Password,
-                            region: region.toLowerCase(),
+                            region: uploadRegion,
                             cleanDestination: 'avoid-deletes'
                         })
                         console.log(`Files uploaded successfully`)

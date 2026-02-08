@@ -29,16 +29,13 @@ export async function capsule({
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/WorkspacePrompt.v0'
                 },
-                push: {
+                prepare: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, { projectionDir, config, dangerouslyResetMain }: { projectionDir: string, config: any, dangerouslyResetMain?: boolean }) {
+                    value: async function (this: any, { projectionDir, config }: { projectionDir: string, config: any }) {
 
                         const originUri = config.provider.config.RepositorySettings.origin
 
-                        console.log(`Push source '${config.sourceDir}' to git repo '${originUri}' ...`)
-                        if (dangerouslyResetMain) {
-                            console.log(`Reset mode enabled - will reset repository to initial commit`)
-                        }
+                        console.log(`Preparing git repo '${originUri}' from source '${config.sourceDir}' ...`)
 
                         const projectSourceDir = join(config.sourceDir)
                         const projectProjectionDir = join(projectionDir, 'repos', originUri.replace(/[@:\/]/g, '~'))
@@ -105,6 +102,28 @@ export async function capsule({
                                     await writeFile(targetPath, content, 'utf-8')
                                 }
                             }
+                        }
+
+                        return {
+                            originUri,
+                            projectSourceDir,
+                            projectProjectionDir,
+                            isNewEmptyRepo
+                        }
+                    }
+                },
+                push: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { config, dangerouslyResetMain, metadata }: { config: any, dangerouslyResetMain?: boolean, metadata: any }) {
+
+                        const {
+                            originUri,
+                            projectProjectionDir,
+                            isNewEmptyRepo
+                        } = metadata
+
+                        if (dangerouslyResetMain) {
+                            console.log(`Reset mode enabled - will reset repository to initial commit`)
                         }
 
                         // Git add, commit, and push changes
