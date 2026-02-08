@@ -10,20 +10,20 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/WorkspaceConfig.v0': {
+            '#t44/structs/WorkspaceConfig.v0': {
                 as: '$WorkspaceConfig'
             },
-            '#@stream44.studio/t44/structs/ProjectRackConfig.v0': {
+            '#t44/structs/ProjectRackConfig.v0': {
                 as: '$ProjectRackConfig'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/HomeRegistry.v0'
+                    value: 't44/caps/HomeRegistry.v0'
                 },
                 ensureRack: {
                     type: CapsulePropertyTypes.Function,
@@ -38,7 +38,7 @@ export async function capsule({
 
                         let rackName: string
 
-                        const rackConfigStructKey = '#@stream44.studio/t44/structs/ProjectRackConfig.v0'
+                        const rackConfigStructKey = '#t44/structs/ProjectRackConfig.v0'
                         if (!rackConfig?.name) {
                             rackName = await this.WorkspacePrompt.setupPrompt({
                                 title: '📦 Project Rack Setup',
@@ -125,4 +125,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/ProjectRack.v0'
+capsule['#'] = 't44/caps/ProjectRack.v0'

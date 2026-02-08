@@ -20,19 +20,19 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/WorkspaceRepositories.v0': {
+            '#t44/structs/WorkspaceRepositories.v0': {
                 as: '$WorkspaceRepositories'
             },
-            '#@stream44.studio/t44/structs/providers/npmjs.com/ProjectPublishingFact.v0': {
+            '#t44/structs/providers/npmjs.com/ProjectPublishingFact.v0': {
                 as: '$NpmFact'
             },
-            '#@stream44.studio/t44/structs/ProjectPublishingFact.v0': {
+            '#t44/structs/ProjectPublishingFact.v0': {
                 as: '$StatusFact'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 prepare: {
                     type: CapsulePropertyTypes.Function,
@@ -449,7 +449,7 @@ export async function capsule({
                                 console.log(chalk.white(`      ${tag.padEnd(10)} v${version}`))
                                 console.log(chalk.gray(`         ${shasum}`))
                             }
-                            console.log()
+                            console.log('')
 
                             // Store for later use
                             metadata.anyTagMatches = anyTagMatches
@@ -563,7 +563,7 @@ export async function capsule({
                                         }
 
                                         console.log(chalk.gray('─'.repeat(80)))
-                                        console.log()
+                                        console.log('')
                                     }
                                 } catch (e) {
                                     // Published package.json doesn't exist or can't be read
@@ -652,7 +652,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/providers/npmjs.com/ProjectPublishing.v0'
+capsule['#'] = 't44/caps/providers/npmjs.com/ProjectPublishing.v0'
 
 
 
@@ -666,7 +666,7 @@ async function buildWorkspacePackageMaps(repositoriesConfig: any) {
             const providers = (repoConfig as any).providers || ((repoConfig as any).provider ? [(repoConfig as any).provider] : [])
 
             for (const provider of providers) {
-                if (provider.capsule === '@stream44.studio/t44/caps/providers/npmjs.com/ProjectPublishing.v0') {
+                if (provider.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
                     const sourceDir = (repoConfig as any).sourceDir
                     const packageJsonPath = join(sourceDir, 'package.json')
 

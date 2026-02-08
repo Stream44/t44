@@ -14,7 +14,7 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/providers/bunny.net/WorkspaceConnectionConfig.v0': {
+            '#t44/structs/providers/bunny.net/WorkspaceConnectionConfig.v0': {
                 as: '$ConnectionConfig'
             },
             '#': {
@@ -91,5 +91,5 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/providers/bunny.net/api.v0'
+capsule['#'] = 't44/caps/providers/bunny.net/api.v0'
 

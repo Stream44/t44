@@ -13,35 +13,35 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0': {
+            '#t44/structs/ProjectDeploymentConfig.v0': {
                 as: '$config'
             },
-            '#@stream44.studio/t44/structs/WorkspaceConfig.v0': {
+            '#t44/structs/WorkspaceConfig.v0': {
                 as: '$Config'
             },
-            '#@stream44.studio/t44/structs/WorkspaceRepositories.v0': {
+            '#t44/structs/WorkspaceRepositories.v0': {
                 as: '$WorkspaceRepositories'
             },
             '#': {
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceProjects.v0'
+                    value: 't44/caps/WorkspaceProjects.v0'
                 },
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceConfig.v0'
+                    value: 't44/caps/WorkspaceConfig.v0'
                 },
                 Vercel: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/vercel.com/ProjectDeployment.v0'
+                    value: 't44/caps/providers/vercel.com/ProjectDeployment.v0'
                 },
                 Bunny: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/bunny.net/ProjectDeployment.v0'
+                    value: 't44/caps/providers/bunny.net/ProjectDeployment.v0'
                 },
                 Dynadot: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/dynadot.com/ProjectDeployment.v0'
+                    value: 't44/caps/providers/dynadot.com/ProjectDeployment.v0'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -58,7 +58,9 @@ export async function capsule({
                         console.log(chalk.bold('═══════════════════════════════════════════════════════════════\n'))
 
                         console.log(chalk.gray('Current Directory:'), chalk.white(process.cwd()))
-                        console.log(chalk.gray('   Workspace Root:'), chalk.white(workspaceRootDir) + '\n')
+                        console.log(chalk.gray('   Workspace Root:'), chalk.white(workspaceRootDir))
+                        console.log(chalk.gray('  Workspace Name:'), chalk.white(workspaceConfig?.name || 'N/A'))
+                        console.log(chalk.gray('    Workspace ID:'), chalk.white(workspaceConfig?.identifier || 'N/A') + '\n')
 
                         // Display config tree
                         console.log(chalk.bold.magenta('CONFIGURATION FILES'))
@@ -110,8 +112,11 @@ export async function capsule({
                                 formattedPath = chalk.white(displayPath)
                             }
 
+                            // Compute relative path from workspace root for clickable terminal link
+                            const relFilePath = relative(workspaceRootDir, treeNode.path)
+
                             const connector = isLast ? '└── ' : '├── '
-                            console.log(chalk.gray(prefix + connector) + formattedPath)
+                            console.log(chalk.gray(prefix + connector) + formattedPath + chalk.gray(' - ' + relFilePath))
 
                             if (treeNode.extends && treeNode.extends.length > 0) {
                                 const childPrefix = prefix + (isLast ? '    ' : '│   ')
@@ -137,7 +142,7 @@ export async function capsule({
                                 const hasRepositories = Object.keys(project.repositories).length > 0
 
                                 const gitOrigin = project.git && typeof project.git === 'object' && project.git.remotes?.origin
-                                    ? chalk.gray('  ' + project.git.remotes.origin)
+                                    ? chalk.gray(' - ' + project.git.remotes.origin)
                                     : ''
                                 console.log(chalk.bold.white(`  ${projectName}`) + gitOrigin)
 
@@ -165,7 +170,7 @@ export async function capsule({
 
                                                     const passive = !args?.now && !args?.full
 
-                                                    if (capsulePath === '@stream44.studio/t44/caps/providers/vercel.com/ProjectDeployment.v0') {
+                                                    if (capsulePath === 't44/caps/providers/vercel.com/ProjectDeployment.v0') {
                                                         providerStatusPromises.push(this.Vercel.status({
                                                             config,
                                                             now: args?.now,
@@ -176,7 +181,7 @@ export async function capsule({
                                                             error: error.message,
                                                             rawDefinitionFilepaths: []
                                                         })))
-                                                    } else if (capsulePath === '@stream44.studio/t44/caps/providers/bunny.net/ProjectDeployment.v0') {
+                                                    } else if (capsulePath === 't44/caps/providers/bunny.net/ProjectDeployment.v0') {
                                                         providerStatusPromises.push(this.Bunny.status({
                                                             config,
                                                             now: args?.now,
@@ -187,7 +192,7 @@ export async function capsule({
                                                             error: error.message,
                                                             rawDefinitionFilepaths: []
                                                         })))
-                                                    } else if (capsulePath === '@stream44.studio/t44/caps/providers/dynadot.com/ProjectDeployment.v0') {
+                                                    } else if (capsulePath === 't44/caps/providers/dynadot.com/ProjectDeployment.v0') {
                                                         providerStatusPromises.push(this.Dynadot.status({
                                                             config,
                                                             now: args?.now,
@@ -466,7 +471,7 @@ export async function capsule({
                                                 if (status.providerPortalUrl) {
                                                     parts.push(chalk.gray('portal: ') + chalk.blue(status.providerPortalUrl))
                                                 }
-                                                const meta = status['#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0']
+                                                const meta = status['#t44/structs/ProjectDeploymentConfig.v0']
                                                 if (meta?.updatedAt) {
                                                     parts.push(chalk.gray(formatElapsedTime(new Date(meta.updatedAt).getTime())))
                                                 }
@@ -491,7 +496,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/WorkspaceInfo.v0'
+capsule['#'] = 't44/caps/WorkspaceInfo.v0'
 
 
 

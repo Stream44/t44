@@ -33,10 +33,10 @@ export async function capsule({
             }
         }
     }, {
-        extendsCapsule: '@stream44.studio/t44/caps/WorkspaceConnection.v0',
+        extendsCapsule: 't44/caps/WorkspaceConnection.v0',
         importMeta: import.meta,
         importStack: makeImportStack(),
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/structs/providers/github.com/WorkspaceConnectionConfig.v0'
+capsule['#'] = 't44/structs/providers/github.com/WorkspaceConnectionConfig.v0'

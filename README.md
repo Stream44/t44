@@ -1,19 +1,15 @@
-t44 Workspace Foundation
+Terminal44 Workspace Foundation
 ===
 
 > Bedrock in a storm of constant change. A web3 + AI ready workspace you can build an empire on.
 
-The t44 workspace foundation running on [bun](https://bun.sh) enables you to build any project of any complexity by providing
-fundamental capabilities needed by any modern software development toolchain & process.
+The `t44` workspace foundation running on [bun](https://bun.sh) enables you to build any project of any complexity by providing fundamental capabilities needed by any modern software development toolchain & process.
 
-This workspace is called `t44` because it builds on [turborepo.dev](https://turborepo.dev/) and the [Vercel](https://vercel.com/) ecosystem.
+The primary audience is **Full-Stack JavaScript developers** looking for an *offline first, always online* home for their projects.
 
 **Get started with pre-built applications in a matter of minutes: [github.com/Stream44/t44-starter](https://github.com/Stream44/t44-starter)**
 
-Build against a novel [PrivateData.Space](https://privatedata.space/) architecture that
-projects the runtime system from declared
-logic in a codebase structured for a flowing creation process. Complexity is no problem
-when code is encapsulated and identified as related components throughout the entire codebase.
+Build against a novel [PrivateData.Space](https://privatedata.space/) architecture that projects the runtime system from declared logic in a codebase structured for a flowing creation process. Complexity is no problem when code is encapsulated and identified as related components throughout the entire codebase.
 
 The approach enables rapid creation & adoption of new technology by re-framing existing logic for new runtime environments. It enables model-driven development. It allows for the precipitation of logic into stable long-term thought models and implementation architectures that make teams and users happy. The approach and architecture embodied within is the result of multiple decades of active exploration.
 
@@ -24,7 +20,7 @@ This is an **open development project** built by [Christoph](https://christoph.d
 Goals
 ---
 
-- Human first with AI peer
+- Human first with AI tools
 - Simple to understand and work with
 - Deploy from one codebase to many providers and runtimes
 - A lasting foundation for the next generation of distributed applications & systems
@@ -41,7 +37,7 @@ This project is in **early development** and not ready for production use. Every
 
 For now it is best used for small projects and exploration in non-mission critical settings.
 
-Do get in touch at [discord.gg](https://discord.gg/9eBcQXEJAN) ([Stream44.Studio](https://Stream44.Studio) server) if you are running it and need support.
+Get in touch at [discord.gg](https://discord.gg/9eBcQXEJAN) ([Stream44.Studio](https://Stream44.Studio) server) if you are running it and need support.
 
 
 Usage
@@ -57,24 +53,23 @@ Roadmap
   - [ ] Monorepo
   - [ ] Packages
   - [ ] Components
+  - [ ] Schemas
   - [ ] Continuous Integration / Delivery
   - [ ] AI
 - Workspace CLI
-  - [ ] Activate shell environment
-  - [ ] Install & run projects
+  - [x] Activate shell environment
+  - [x] Show workspace info
+  - [ ] Add install & run projects
   - [x] Push & deploy projects
+    - [ ] Select from supported providers on deploy
 - Open Tools
   - [ ] [turborepo](https://turborepo.dev/)
-    - [ ] metadata extraction
 - Deploy to
   - [x] [vercel.com](https://vercel.com/)
-    - [ ] metadata extraction
   - [x] [bunny.net](https://bunny.net/)
-    - [ ] metadata extraction
   - [x] [npmjs.com](https://npmjs.com/)
-    - [ ] metadata extraction
+  - [x] [github.com](https://github.com/)
   - [ ] [upstash.com](https://upstash.com/)
-    - [ ] metadata extraction
 - Supported Technologies & Protocols
   - [x] [bun.sh](https://bun.sh)
   - [ ] `node`
@@ -100,14 +95,15 @@ Following are glimpses of what the perspective must encompass and for which impl
 Timless Principles
 ---
 
-- Human First
-- Open Participation
-- Infinite Complexity Accomodation
-- Arbitrary Logic Embodyment
-- Rapid Iteration
-- Instant Feedback
-- Complete Provenance
-- Stable Structuring
+- [ ] Human First
+- [ ] Open Participation
+- [ ] Offline First & Always Online
+- [ ] Infinite Complexity Accomodation
+- [ ] Arbitrary Logic Embodyment
+- [ ] Instant Feedback
+- [ ] Rapid Iteration
+- [ ] Complete Provenance
+- [ ] Stable Structuring
 
 
 Best Practices
@@ -141,7 +137,7 @@ a major constricting force to the ability for teams to deliver.
 
 The workspace addresses this constriction in the development process by
 promoting the building and deployment of runtime containers able to load lighweight
-business logic componentys on demand. Any part of the codebase that receives any
+business logic components on demand. Any part of the codebase that receives any
 significant amount of regular changes should have an optimized realtime deployment approach
 setup.
 

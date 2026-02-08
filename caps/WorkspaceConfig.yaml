@@ -2,17 +2,17 @@
 extends:
  - "./WorkspaceShell.yaml"
 
-"#@stream44.studio/t44/structs/WorkspaceCliConfig.v0":
+"#t44/structs/WorkspaceCliConfig.v0":
   javascript:
     api:
       workspaceDir: resolve('${__dirname}/..')
   cli:
     commands:
       activate:
-        capsule: "@stream44.studio/t44/caps/WorkspaceShell.v0"
+        capsule: "t44/caps/WorkspaceShell.v0"
         description: "Generate environment variables for sourcing into shells."
       deploy:
-        capsule: "@stream44.studio/t44/caps/ProjectDeployment.v0"
+        capsule: "t44/caps/ProjectDeployment.v0"
         description: "Deploy a project to a provider."
         arguments:
           projectSelector:
@@ -22,7 +22,7 @@ extends:
           deprovision:
             description: "Delete the project from the provider instead of deploying it"
       push:
-        capsule: "@stream44.studio/t44/caps/ProjectPublishing.v0"
+        capsule: "t44/caps/ProjectPublishing.v0"
         description: "Publish local committed code to a remote service."
         arguments:
           projectSelector:
@@ -35,8 +35,18 @@ extends:
             description: "Remove release candidate suffix and publish release version"
           dangerously-reset-main:
             description: "Reset the git repository and force push to remote"
+      dev:
+        capsule: "t44/caps/ProjectDevelopment.v0"
+        description: "Run a project or package dev server."
+        arguments:
+          projectSelector:
+            optional: true
+            description: "Name of a project or package to run the dev script for."
+      init:
+        capsule: "t44/caps/WorkspaceInit.v0"
+        description: "Initialize a new Terminal 44 workspace."
       info:
-        capsule: "@stream44.studio/t44/caps/WorkspaceInfo.v0"
+        capsule: "t44/caps/WorkspaceInfo.v0"
         description: "Display information about the workspace."
         options:
           full:

@@ -3,6 +3,7 @@ import { join } from 'path'
 import { $ } from 'bun'
 import { mkdir, access, readFile, writeFile } from 'fs/promises'
 import { constants } from 'fs'
+import chalk from 'chalk'
 
 export async function capsule({
     encapsulate,
@@ -16,32 +17,32 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/WorkspaceConfig.v0': {
+            '#t44/structs/WorkspaceConfig.v0': {
                 as: '$WorkspaceConfig'
             },
-            '#@stream44.studio/t44/structs/WorkspaceRepositories.v0': {
+            '#t44/structs/WorkspaceRepositories.v0': {
                 as: '$WorkspaceRepositories'
             },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceConfig.v0'
+                    value: 't44/caps/WorkspaceConfig.v0'
                 },
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceProjects.v0'
+                    value: 't44/caps/WorkspaceProjects.v0'
                 },
                 GitRepository: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/git-scm.com/ProjectPublishing.v0'
+                    value: 't44/caps/providers/git-scm.com/ProjectPublishing.v0'
                 },
                 NpmRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/npmjs.com/ProjectPublishing.v0'
+                    value: 't44/caps/providers/npmjs.com/ProjectPublishing.v0'
                 },
                 GitHubRepository: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/github.com/ProjectPublishing.v0'
+                    value: 't44/caps/providers/github.com/ProjectPublishing.v0'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -130,7 +131,7 @@ export async function capsule({
                         const packageMetadata: Map<string, any> = new Map()
 
                         await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                            if (capsuleName === '@stream44.studio/t44/caps/providers/npmjs.com/ProjectPublishing.v0') {
+                            if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
                                 const metadata = await this.NpmRegistry.prepare({
                                     config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
                                     projectionDir: join(
@@ -152,7 +153,7 @@ export async function capsule({
 
                             const bumpedRepos = new Set<string>()
                             await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                                if (capsuleName === '@stream44.studio/t44/caps/providers/npmjs.com/ProjectPublishing.v0') {
+                                if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
                                     const metadata = packageMetadata.get(repoName)
 
                                     if (metadata && metadata.hasChanges) {
@@ -176,8 +177,64 @@ export async function capsule({
 
                             console.log('[t44] Version bump complete!\n')
 
+                            // Tag git-scm repos with the bumped version
+                            const taggedRepos = new Set<string>()
                             await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                                if (capsuleName === '@stream44.studio/t44/caps/providers/npmjs.com/ProjectPublishing.v0') {
+                                if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing.v0' && !taggedRepos.has(repoName)) {
+                                    // Read the bumped version from the source package.json
+                                    const packageJsonPath = join(repoSourceDir, 'package.json')
+                                    try {
+                                        const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
+                                        const packageJson = JSON.parse(packageJsonContent)
+                                        const version = packageJson.version
+                                        const tag = `v${version}`
+
+                                        const originUri = providerConfig.config.RepositorySettings.origin
+                                        const projectionDir = join(
+                                            this.WorkspaceConfig.workspaceRootDir,
+                                            '.~o/workspace.foundation/o/git-scm.com'
+                                        )
+                                        const projectProjectionDir = join(projectionDir, 'repos', originUri.replace(/[@:\/]/g, '~'))
+
+                                        // Check if the projection repo exists
+                                        try {
+                                            await access(projectProjectionDir, constants.F_OK)
+                                        } catch {
+                                            // Repo not cloned yet, tagging will happen after push
+                                            return
+                                        }
+
+                                        // Check if tag already exists locally or on remote
+                                        const localTagCheck = await $`git tag -l ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
+                                        if (localTagCheck.text().trim() === tag) {
+                                            throw new Error(
+                                                `Git tag '${tag}' already exists in repository '${repoName}'.\n` +
+                                                `  Please bump to a different version before pushing.`
+                                            )
+                                        }
+
+                                        const remoteTagCheck = await $`git ls-remote --tags origin ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
+                                        if (remoteTagCheck.text().trim().length > 0) {
+                                            throw new Error(
+                                                `Git tag '${tag}' already exists on remote for repository '${repoName}'.\n` +
+                                                `  Please bump to a different version before pushing.`
+                                            )
+                                        }
+
+                                        await $`git tag ${tag}`.cwd(projectProjectionDir)
+                                        console.log(chalk.green(`  ✓ Tagged repository '${repoName}' with ${tag}\n`))
+                                        taggedRepos.add(repoName)
+                                    } catch (error: any) {
+                                        if (error.message?.includes('already exists')) {
+                                            throw error
+                                        }
+                                        // Skip if package.json can't be read
+                                    }
+                                }
+                            })
+
+                            await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
+                                if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
                                     const metadata = await this.NpmRegistry.prepare({
                                         config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
                                         projectionDir: join(
@@ -205,11 +262,11 @@ export async function capsule({
 
                             const metadata = packageMetadata.get(repoName)
 
-                            if (capsuleName === '@stream44.studio/t44/caps/providers/github.com/ProjectPublishing.v0') {
+                            if (capsuleName === 't44/caps/providers/github.com/ProjectPublishing.v0') {
                                 await this.GitHubRepository.push({
                                     config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir }
                                 })
-                            } else if (capsuleName === '@stream44.studio/t44/caps/providers/git-scm.com/ProjectPublishing.v0') {
+                            } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing.v0') {
                                 await this.GitRepository.push({
                                     config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
                                     projectionDir: join(
@@ -218,7 +275,7 @@ export async function capsule({
                                     ),
                                     dangerouslyResetMain
                                 })
-                            } else if (capsuleName === '@stream44.studio/t44/caps/providers/npmjs.com/ProjectPublishing.v0') {
+                            } else if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
                                 await this.NpmRegistry.push({
                                     config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
                                     projectionDir: join(
@@ -247,4 +304,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/ProjectPublishing.v0'
+capsule['#'] = 't44/caps/ProjectPublishing.v0'

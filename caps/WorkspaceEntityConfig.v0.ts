@@ -14,7 +14,7 @@ export async function capsule({
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceConfig.v0'
+                    value: 't44/caps/WorkspaceConfig.v0'
                 },
                 config: {
                     type: CapsulePropertyTypes.GetterFunction,
@@ -44,13 +44,13 @@ export async function capsule({
 
                         const configKey = '#' + this.capsuleName
 
-                        const existingConfig = await this.config
-                        if (!existingConfig || !existingConfig.createdAt) {
-                            await this.WorkspaceConfig.setConfigValue([configKey, 'createdAt'], new Date().toISOString())
-                        }
+                        await this.WorkspaceConfig.setConfigValue([configKey, 'createdAt'], new Date().toISOString(), { ifAbsent: true })
 
-                        await this.WorkspaceConfig.setConfigValue([configKey, ...path], value)
-                        await this.WorkspaceConfig.setConfigValue([configKey, 'updatedAt'], new Date().toISOString())
+                        const changed = await this.WorkspaceConfig.setConfigValue([configKey, ...path], value)
+
+                        if (changed) {
+                            await this.WorkspaceConfig.setConfigValue([configKey, 'updatedAt'], new Date().toISOString())
+                        }
                     }
                 }
             }
@@ -61,4 +61,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/WorkspaceEntityConfig.v0'
+capsule['#'] = 't44/caps/WorkspaceEntityConfig.v0'

@@ -19,12 +19,12 @@ const {
             '#': {
                 test: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceTest.v0',
+                    value: 't44/caps/WorkspaceTest.v0',
                     options: {
                         '#': {
                             bunTest,
                             env: {
-                                BUNNY_API_KEY: { factReference: '@stream44.studio/t44/structs/providers/bunny.net/WorkspaceConnectionConfig.v0:apiKey' }
+                                BUNNY_API_KEY: { factReference: 't44/structs/providers/bunny.net/WorkspaceConnectionConfig.v0:apiKey' }
                             }
                         }
                     }
@@ -42,7 +42,7 @@ const {
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: '@stream44.studio/t44/caps/providers/bunny.net/api-pull.v0.test'
+        capsuleName: 't44/caps/providers/bunny.net/api-pull.v0.test'
     })
     return { spine }
 }, async ({ spine, apis }: any) => {

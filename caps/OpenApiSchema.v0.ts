@@ -17,7 +17,7 @@ export async function capsule({
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceConfig.v0'
+                    value: 't44/caps/WorkspaceConfig.v0'
                 },
                 url: {
                     type: CapsulePropertyTypes.Literal,
@@ -189,4 +189,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/OpenApiSchema.v0'
+capsule['#'] = 't44/caps/OpenApiSchema.v0'

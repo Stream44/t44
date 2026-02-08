@@ -15,16 +15,16 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/WorkspaceCliConfig.v0': {
+            '#t44/structs/WorkspaceCliConfig.v0': {
                 as: '$WorkspaceCliConfig'
             },
-            '#@stream44.studio/t44/structs/WorkspaceShellConfig.v0': {
+            '#t44/structs/WorkspaceShellConfig.v0': {
                 as: '$ShellConfig'
             },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceConfig.v0'
+                    value: 't44/caps/WorkspaceConfig.v0'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -41,7 +41,7 @@ export async function capsule({
                         process.stdout.write('\n')
 
                         // Load the shell script template
-                        const shellScriptModule = import.meta.resolve('@stream44.studio/t44/caps/WorkspaceShell.sh')
+                        const shellScriptModule = import.meta.resolve('t44/caps/WorkspaceShell.sh')
                         const shellScriptPath = shellScriptModule.replace('file://', '')
                         let shellScript = await readFile(shellScriptPath, 'utf-8')
 
@@ -101,4 +101,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/WorkspaceShell.v0'
+capsule['#'] = 't44/caps/WorkspaceShell.v0'

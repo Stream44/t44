@@ -10,13 +10,13 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/HomeRegistryConfig.v0': {
+            '#t44/structs/HomeRegistryConfig.v0': {
                 as: '$HomeRegistryConfig'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 rootDir: {
                     type: CapsulePropertyTypes.GetterFunction,
@@ -60,7 +60,7 @@ export async function capsule({
                             console.log(chalk.cyan(`\n🏠 Home Registry Setup\n`))
                             console.log(chalk.gray('   The home registry is the place in your home directory that keeps'))
                             console.log(chalk.gray('   details about your workspaces and projects.'))
-                            console.log()
+                            console.log('')
 
                             chosenDir = await this.WorkspacePrompt.input({
                                 message: 'Enter the home registry directory:',
@@ -295,4 +295,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/HomeRegistry.v0'
+capsule['#'] = 't44/caps/HomeRegistry.v0'

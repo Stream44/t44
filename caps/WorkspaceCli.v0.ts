@@ -14,45 +14,53 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/WorkspaceCliConfig.v0': {
+            '#t44/structs/WorkspaceCliConfig.v0': {
                 as: '$config'
             },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceConfig.v0'
+                    value: 't44/caps/WorkspaceConfig.v0'
                 },
                 WorkspaceKey: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceKey.v0'
+                    value: 't44/caps/WorkspaceKey.v0'
                 },
                 ProjectRack: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/ProjectRack.v0'
+                    value: 't44/caps/ProjectRack.v0'
                 },
                 WorkspaceShell: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceShell.v0'
+                    value: 't44/caps/WorkspaceShell.v0'
                 },
                 ProjectDeployment: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/ProjectDeployment.v0'
+                    value: 't44/caps/ProjectDeployment.v0'
                 },
                 ProjectPublishing: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/ProjectPublishing.v0'
+                    value: 't44/caps/ProjectPublishing.v0'
+                },
+                ProjectDevelopment: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: 't44/caps/ProjectDevelopment.v0'
+                },
+                WorkspaceInit: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: 't44/caps/WorkspaceInit.v0'
                 },
                 WorkspaceInfo: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceInfo.v0'
+                    value: 't44/caps/WorkspaceInfo.v0'
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/HomeRegistry.v0'
+                    value: 't44/caps/HomeRegistry.v0'
                 },
                 cliOptions: {
                     type: CapsulePropertyTypes.Literal,
@@ -88,13 +96,17 @@ export async function capsule({
 
                                 if (capsule) {
                                     // TODO: Dynamically load capsule
-                                    if (capsule === '@stream44.studio/t44/caps/ProjectDeployment.v0') {
+                                    if (capsule === 't44/caps/ProjectDeployment.v0') {
                                         await self.ProjectDeployment.run({ args: commandArgs })
-                                    } else if (capsule === '@stream44.studio/t44/caps/ProjectPublishing.v0') {
+                                    } else if (capsule === 't44/caps/ProjectPublishing.v0') {
                                         await self.ProjectPublishing.run({ args: commandArgs })
-                                    } else if (capsule === '@stream44.studio/t44/caps/WorkspaceShell.v0') {
+                                    } else if (capsule === 't44/caps/WorkspaceShell.v0') {
                                         await self.WorkspaceShell.run({ args: commandArgs })
-                                    } else if (capsule === '@stream44.studio/t44/caps/WorkspaceInfo.v0') {
+                                    } else if (capsule === 't44/caps/ProjectDevelopment.v0') {
+                                        await self.ProjectDevelopment.run({ args: commandArgs })
+                                    } else if (capsule === 't44/caps/WorkspaceInit.v0') {
+                                        await self.WorkspaceInit.run({ args: commandArgs })
+                                    } else if (capsule === 't44/caps/WorkspaceInfo.v0') {
                                         await self.WorkspaceInfo.run({ args: commandArgs })
                                     } else {
                                         throw new Error(`Unsupported capsule '${capsule}'!`)
@@ -113,10 +125,10 @@ export async function capsule({
                         const chalk = (await import('chalk')).default
 
                         const fullConfig = await this.WorkspaceConfig.config
-                        const wsConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceConfig.v0'
-                        const keyConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceKeyConfig.v0'
-                        const rackConfigStructKey = '#@stream44.studio/t44/structs/ProjectRackConfig.v0'
-                        const homeRegistryConfigStructKey = '#@stream44.studio/t44/structs/HomeRegistryConfig.v0'
+                        const wsConfigStructKey = '#t44/structs/WorkspaceConfig.v0'
+                        const keyConfigStructKey = '#t44/structs/WorkspaceKeyConfig.v0'
+                        const rackConfigStructKey = '#t44/structs/ProjectRackConfig.v0'
+                        const homeRegistryConfigStructKey = '#t44/structs/HomeRegistryConfig.v0'
 
                         const ws = fullConfig?.[wsConfigStructKey]
                         const keyConfig = fullConfig?.[keyConfigStructKey]
@@ -376,4 +388,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/WorkspaceCli.v0'
+capsule['#'] = 't44/caps/WorkspaceCli.v0'

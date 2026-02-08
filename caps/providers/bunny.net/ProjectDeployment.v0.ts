@@ -11,19 +11,19 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/ProjectDeploymentFact.v0': {
+            '#t44/structs/ProjectDeploymentFact.v0': {
                 as: '$StatusFact'
             },
-            '#@stream44.studio/t44/structs/providers/bunny.net/ProjectDeploymentFact.v0': {
+            '#t44/structs/providers/bunny.net/ProjectDeploymentFact.v0': {
                 as: '$BunnyFact'
             },
-            '#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0': {
+            '#t44/structs/ProjectDeploymentConfig.v0': {
                 as: '$ProjectDeploymentConfig'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 storage: {
                     type: CapsulePropertyTypes.Mapping,
@@ -152,7 +152,7 @@ export async function capsule({
                             provider: 'bunny.net',
                             status: 'READY',
                             publicUrl,
-                            '#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0': {
+                            '#t44/structs/ProjectDeploymentConfig.v0': {
                                 updatedAt: new Date().toISOString()
                             }
                         }
@@ -288,7 +288,7 @@ export async function capsule({
 
                         // Preserve updatedAt from existing cached status
                         const existingStatus = await this.$StatusFact.get('ProjectDeploymentStatus', projectName, 'ProjectDeploymentStatus')
-                        const existingMeta = existingStatus?.data?.['#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0']
+                        const existingMeta = existingStatus?.data?.['#t44/structs/ProjectDeploymentConfig.v0']
 
                         const result: Record<string, any> = {
                             projectName: projectName,
@@ -307,7 +307,7 @@ export async function capsule({
                         }
 
                         if (existingMeta?.updatedAt) {
-                            result['#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0'] = {
+                            result['#t44/structs/ProjectDeploymentConfig.v0'] = {
                                 updatedAt: existingMeta.updatedAt
                             }
                         }
@@ -325,4 +325,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/providers/bunny.net/ProjectDeployment.v0'
+capsule['#'] = 't44/caps/providers/bunny.net/ProjectDeployment.v0'

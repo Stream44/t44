@@ -6,7 +6,7 @@ export async function capsule({
 }: any) {
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
-            '#@stream44.studio/t44/caps/OpenApiSchema.v0': {
+            '#t44/caps/OpenApiSchema.v0': {
                 as: 'schema',
                 options: {
                     '#': {
@@ -32,10 +32,10 @@ export async function capsule({
             }
         }
     }, {
-        extendsCapsule: '@stream44.studio/t44/caps/WorkspaceEntityFact.v0',
+        extendsCapsule: 't44/caps/WorkspaceEntityFact.v0',
         importMeta: import.meta,
         importStack: makeImportStack(),
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/structs/providers/bunny.net/ProjectDeploymentFact.v0'
+capsule['#'] = 't44/structs/providers/bunny.net/ProjectDeploymentFact.v0'

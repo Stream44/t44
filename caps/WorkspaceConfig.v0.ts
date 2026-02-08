@@ -17,7 +17,7 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/WorkspaceConfig.v0': {
+            '#t44/structs/WorkspaceConfig.v0': {
                 as: '$WorkspaceConfig'
             },
             '#': {
@@ -31,11 +31,11 @@ export async function capsule({
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/HomeRegistry.v0'
+                    value: 't44/caps/HomeRegistry.v0'
                 },
                 config: {
                     type: CapsulePropertyTypes.GetterFunction,
@@ -46,8 +46,8 @@ export async function capsule({
                         const { config } = await loadConfigWithExtends(configPath, this.workspaceRootDir)
 
                         // Get struct configs from the loaded config (avoid circular dependency by not calling struct.config)
-                        const workspaceConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceConfig.v0'
-                        const cliConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceCliConfig.v0'
+                        const workspaceConfigStructKey = '#t44/structs/WorkspaceConfig.v0'
+                        const cliConfigStructKey = '#t44/structs/WorkspaceCliConfig.v0'
                         const workspaceConfigStruct = config[workspaceConfigStructKey] || {}
                         const cliConfigStruct = config[cliConfigStructKey] || {}
 
@@ -213,10 +213,22 @@ export async function capsule({
                 },
                 setConfigValue: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, path: string[], value: any): Promise<void> {
+                    value: async function (this: any, path: string[], value: any, options?: { ifAbsent?: boolean }): Promise<boolean> {
                         const configPath = join(this.workspaceRootDir, this.workspaceConfigFilepath)
                         const configContent = await readFile(configPath, 'utf-8')
                         const config = yaml.load(configContent) as any || {}
+
+                        const existingValue = getAtPath(config, path)
+
+                        // If ifAbsent is set, only write if the key doesn't exist yet
+                        if (options?.ifAbsent && existingValue !== undefined) {
+                            return false
+                        }
+
+                        // Check if value at path is already identical — skip write if unchanged
+                        if (deepEqual(existingValue, value)) {
+                            return false
+                        }
 
                         // Set value at path using lodash-style set
                         setAtPath(config, path, value)
@@ -229,6 +241,7 @@ export async function capsule({
                             sortKeys: false
                         })
                         await writeFile(configPath, updatedContent)
+                        return true
                     }
                 },
             }
@@ -239,7 +252,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/WorkspaceConfig.v0'
+capsule['#'] = 't44/caps/WorkspaceConfig.v0'
 
 function resolveExtendPath(extendPath: string, configDir: string, workspaceRequire: NodeRequire): string {
     if (extendPath.startsWith('.')) {
@@ -248,7 +261,7 @@ function resolveExtendPath(extendPath: string, configDir: string, workspaceRequi
         // For module paths, we need to resolve the package directory first
         // because require.resolve() only works for JS modules, not .yaml files
         // Split the path into package name and file path
-        // Handle scoped packages like @stream44.studio/t44/workspace.yaml
+        // Handle scoped packages like t44/workspace.yaml
         let packageName: string
         let filePath: string
 
@@ -360,42 +373,42 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
 
         // Check for deprecated top-level deployments property
         if (config.deployments) {
-            throw new Error(`Top-level 'deployments' property found in '${absolutePath}'. This format is deprecated. Please move your deployments configuration under the '#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'deployments' property found in '${absolutePath}'. This format is deprecated. Please move your deployments configuration under the '#t44/structs/ProjectDeploymentConfig.v0' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level cli property
         if (config.cli) {
-            throw new Error(`Top-level 'cli' property found in '${absolutePath}'. This format is deprecated. Please move your cli configuration under the '#@stream44.studio/t44/structs/WorkspaceCliConfig.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'cli' property found in '${absolutePath}'. This format is deprecated. Please move your cli configuration under the '#t44/structs/WorkspaceCliConfig.v0' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level shell property
         if (config.shell) {
-            throw new Error(`Top-level 'shell' property found in '${absolutePath}'. This format is deprecated. Please move your shell configuration under the '#@stream44.studio/t44/structs/WorkspaceShellConfig.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'shell' property found in '${absolutePath}'. This format is deprecated. Please move your shell configuration under the '#t44/structs/WorkspaceShellConfig.v0' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level env property
         if (config.env) {
-            throw new Error(`Top-level 'env' property found in '${absolutePath}'. This format is deprecated. Please move your env configuration under the '#@stream44.studio/t44/structs/WorkspaceShellConfig.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'env' property found in '${absolutePath}'. This format is deprecated. Please move your env configuration under the '#t44/structs/WorkspaceShellConfig.v0' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level javascript property
         if (config.javascript) {
-            throw new Error(`Top-level 'javascript' property found in '${absolutePath}'. This format is deprecated. Please move your javascript configuration under the '#@stream44.studio/t44/structs/WorkspaceCliConfig.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'javascript' property found in '${absolutePath}'. This format is deprecated. Please move your javascript configuration under the '#t44/structs/WorkspaceCliConfig.v0' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level workspace property
         if (config.workspace) {
-            throw new Error(`Top-level 'workspace' property found in '${absolutePath}'. This format is deprecated. Please move your workspace configuration under the '#@stream44.studio/t44/structs/WorkspaceConfig.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'workspace' property found in '${absolutePath}'. This format is deprecated. Please move your workspace configuration under the '#t44/structs/WorkspaceConfig.v0' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level repositories property
         if (config.repositories) {
-            throw new Error(`Top-level 'repositories' property found in '${absolutePath}'. This format is deprecated. Please move your repositories configuration under the '#@stream44.studio/t44/structs/WorkspaceRepositories.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'repositories' property found in '${absolutePath}'. This format is deprecated. Please move your repositories configuration under the '#t44/structs/WorkspaceRepositories.v0' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level mappings property
         if (config.mappings) {
-            throw new Error(`Top-level 'mappings' property found in '${absolutePath}'. This format is deprecated. Please move your mappings configuration under the '#@stream44.studio/t44/structs/WorkspaceMappings.v0' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'mappings' property found in '${absolutePath}'. This format is deprecated. Please move your mappings configuration under the '#t44/structs/WorkspaceMappings.v0' key. See documentation for the new format.`)
         }
 
         // Validate that only 'extends' is allowed as a top-level property, all others must start with '#'
@@ -443,21 +456,21 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
     const expectedWorkspaceDir = resolve(mainConfigDir, '..')
 
     // Set javascript.api.workspaceDir in the CLI config struct
-    const cliConfigKey = '#@stream44.studio/t44/structs/WorkspaceCliConfig.v0'
+    const cliConfigKey = '#t44/structs/WorkspaceCliConfig.v0'
     if (!mergedConfig[cliConfigKey]) mergedConfig[cliConfigKey] = {}
     if (!mergedConfig[cliConfigKey].javascript) mergedConfig[cliConfigKey].javascript = {}
     if (!mergedConfig[cliConfigKey].javascript.api) mergedConfig[cliConfigKey].javascript.api = {}
     mergedConfig[cliConfigKey].javascript.api.workspaceDir = expectedWorkspaceDir
 
     // Set F_WORKSPACE_DIR in the shell config struct
-    const shellConfigKey = '#@stream44.studio/t44/structs/WorkspaceShellConfig.v0'
+    const shellConfigKey = '#t44/structs/WorkspaceShellConfig.v0'
     if (!mergedConfig[shellConfigKey]) mergedConfig[shellConfigKey] = {}
     if (!mergedConfig[shellConfigKey].env) mergedConfig[shellConfigKey].env = {}
     if (!mergedConfig[shellConfigKey].env.force) mergedConfig[shellConfigKey].env.force = {}
     mergedConfig[shellConfigKey].env.force.F_WORKSPACE_DIR = expectedWorkspaceDir
 
     // Set workspaceRootDir and workspaceConfigFilepath in the workspace config struct
-    const workspaceConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceConfig.v0'
+    const workspaceConfigStructKey = '#t44/structs/WorkspaceConfig.v0'
     const expectedConfigFilepath = '.workspace/workspace.yaml'
     if (!mergedConfig[workspaceConfigStructKey]) mergedConfig[workspaceConfigStructKey] = {}
 
@@ -549,6 +562,30 @@ function createJitFunction(expression: string, configDir: string): () => Promise
         const fn = new AsyncFunction('join', 'pick', `return ${awaitedExpression}`)
         return await fn(join, pick)
     }
+}
+
+function getAtPath(obj: any, path: string[]): any {
+    let current = obj
+    for (const key of path) {
+        if (current == null || typeof current !== 'object') return undefined
+        current = current[key]
+    }
+    return current
+}
+
+function deepEqual(a: any, b: any): boolean {
+    if (a === b) return true
+    if (a == null || b == null) return false
+    if (typeof a !== typeof b) return false
+    if (typeof a !== 'object') return false
+    if (Array.isArray(a) !== Array.isArray(b)) return false
+    const keysA = Object.keys(a)
+    const keysB = Object.keys(b)
+    if (keysA.length !== keysB.length) return false
+    for (const key of keysA) {
+        if (!deepEqual(a[key], b[key])) return false
+    }
+    return true
 }
 
 function setAtPath(obj: any, path: string[], value: any): void {

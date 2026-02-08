@@ -18,10 +18,10 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/providers/vercel.com/ProjectDeploymentFact.v0': {
+            '#t44/structs/providers/vercel.com/ProjectDeploymentFact.v0': {
                 as: '$ProjectDeploymentFact'
             },
-            '#@stream44.studio/t44/structs/ProjectDeploymentFact.v0': {
+            '#t44/structs/ProjectDeploymentFact.v0': {
                 as: '$StatusFact'
             },
             '#': {
@@ -169,7 +169,7 @@ export async function capsule({
                             projectName,
                             provider: 'vercel.com',
                             status: 'READY',
-                            '#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0': {
+                            '#t44/structs/ProjectDeploymentConfig.v0': {
                                 updatedAt: new Date().toISOString()
                             }
                         }
@@ -244,7 +244,7 @@ export async function capsule({
 
                         // Preserve updatedAt from existing cached status
                         const existingStatus = await this.$StatusFact.get('ProjectDeploymentStatus', projectName, 'ProjectDeploymentStatus')
-                        const existingMeta = existingStatus?.data?.['#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0']
+                        const existingMeta = existingStatus?.data?.['#t44/structs/ProjectDeploymentConfig.v0']
 
                         const result: Record<string, any> = {
                             projectName: projectDetails.name,
@@ -259,7 +259,7 @@ export async function capsule({
                         }
 
                         if (existingMeta?.updatedAt) {
-                            result['#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0'] = {
+                            result['#t44/structs/ProjectDeploymentConfig.v0'] = {
                                 updatedAt: existingMeta.updatedAt
                             }
                         }
@@ -336,4 +336,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/providers/vercel.com/ProjectDeployment.v0'
+capsule['#'] = 't44/caps/providers/vercel.com/ProjectDeployment.v0'

@@ -18,16 +18,16 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/providers/git-scm.com/ProjectPublishingFact.v0': {
+            '#t44/structs/providers/git-scm.com/ProjectPublishingFact.v0': {
                 as: '$GitFact'
             },
-            '#@stream44.studio/t44/structs/ProjectPublishingFact.v0': {
+            '#t44/structs/ProjectPublishingFact.v0': {
                 as: '$StatusFact'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 push: {
                     type: CapsulePropertyTypes.Function,
@@ -187,11 +187,11 @@ export async function capsule({
                         // Push to remote
                         if (shouldReset) {
                             console.log(`Force pushing to remote ...`)
-                            await $`git push --force`.cwd(projectProjectionDir)
+                            await $`git push --force --tags`.cwd(projectProjectionDir)
                             console.log(`Force pushed to remote`)
                         } else if (isNewEmptyRepo || hasNewChanges || localAheadOfRemote) {
                             console.log(`Pushing to remote ...`)
-                            await $`git push -u origin main`.cwd(projectProjectionDir)
+                            await $`git push -u origin main --tags`.cwd(projectProjectionDir)
                             console.log(`Pushed to remote`)
                         }
 
@@ -228,4 +228,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/providers/git-scm.com/ProjectPublishing.v0'
+capsule['#'] = 't44/caps/providers/git-scm.com/ProjectPublishing.v0'

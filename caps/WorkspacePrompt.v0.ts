@@ -32,11 +32,11 @@ export async function capsule({
             '#': {
                 WorkspaceCli: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceCli.v0'
+                    value: 't44/caps/WorkspaceCli.v0'
                 },
                 WorkspaceTest: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceTest.v0'
+                    value: 't44/caps/WorkspaceTest.v0'
                 },
                 prompt: {
                     type: CapsulePropertyTypes.Function,
@@ -95,7 +95,7 @@ export async function capsule({
                             for (const line of lines) {
                                 console.log(chalk.gray(`   ${line}`))
                             }
-                            console.log()
+                            console.log('')
                         }
 
                         // Check if --yes flag is set
@@ -274,11 +274,13 @@ export async function capsule({
                     value: async function (this: any, {
                         message,
                         choices,
-                        defaultValue
+                        defaultValue,
+                        pageSize
                     }: {
                         message: string
                         choices: Array<{ name: string; value: any; disabled?: boolean | string }>
                         defaultValue?: any
+                        pageSize?: number
                     }): Promise<any> {
                         // Check if --yes flag is set
                         const cliOptions = await this.WorkspaceCli.cliOptions
@@ -301,7 +303,8 @@ export async function capsule({
                                     name: 'value',
                                     message,
                                     choices,
-                                    default: defaultValue
+                                    default: defaultValue,
+                                    pageSize: pageSize || 10
                                 }
                             ])
                             return value
@@ -346,7 +349,7 @@ export async function capsule({
                             for (const line of lines) {
                                 console.log(chalk.gray(`   ${line}`))
                             }
-                            console.log()
+                            console.log('')
                         }
 
                         try {
@@ -390,4 +393,4 @@ export async function capsule({
         }
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+capsule['#'] = 't44/caps/WorkspacePrompt.v0'

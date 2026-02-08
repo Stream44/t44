@@ -18,12 +18,12 @@ const {
             '#': {
                 test: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceTest.v0',
+                    value: 't44/caps/WorkspaceTest.v0',
                     options: {
                         '#': {
                             bunTest,
                             env: {
-                                DYNADOT_API_KEY: { factReference: '@stream44.studio/t44/structs/providers/dynadot.com/WorkspaceConnectionConfig.v0:apiKey' }
+                                DYNADOT_API_KEY: { factReference: 't44/structs/providers/dynadot.com/WorkspaceConnectionConfig.v0:apiKey' }
                             }
                         }
                     }
@@ -37,7 +37,7 @@ const {
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: '@stream44.studio/t44/caps/providers/dynadot.com/api-domains.v0.test'
+        capsuleName: 't44/caps/providers/dynadot.com/api-domains.v0.test'
     })
     return { spine }
 }, async ({ spine, apis }: any) => {

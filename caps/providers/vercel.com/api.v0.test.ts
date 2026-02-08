@@ -18,12 +18,12 @@ const {
             '#': {
                 test: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceTest.v0',
+                    value: 't44/caps/WorkspaceTest.v0',
                     options: {
                         '#': {
                             bunTest,
                             env: {
-                                VERCEL_TOKEN: { factReference: '@stream44.studio/t44/structs/providers/vercel.com/WorkspaceConnectionConfig.v0:apiToken' }
+                                VERCEL_TOKEN: { factReference: 't44/structs/providers/vercel.com/WorkspaceConnectionConfig.v0:apiToken' }
                             }
                         }
                     }
@@ -37,7 +37,7 @@ const {
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: '@stream44.studio/t44/caps/providers/vercel.com/api.v0.test'
+        capsuleName: 't44/caps/providers/vercel.com/api.v0.test'
     })
     return { spine }
 }, async ({ spine, apis }: any) => {

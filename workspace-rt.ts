@@ -110,12 +110,12 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
     const result = await run({
         overrides: {
-            ['@stream44.studio/t44/caps/WorkspaceConfig.v0']: {
+            ['t44/caps/WorkspaceConfig.v0']: {
                 '#': {
                     workspaceRootDir
                 }
             },
-            ['@stream44.studio/t44/caps/WorkspaceTest.v0']: {
+            ['t44/caps/WorkspaceTest.v0']: {
                 '#': {
                     testRootDir: options?.importMeta?.dir
                 }

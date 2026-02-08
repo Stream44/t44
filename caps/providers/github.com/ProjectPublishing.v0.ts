@@ -14,16 +14,16 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/providers/github.com/ProjectPublishingFact.v0': {
+            '#t44/structs/providers/github.com/ProjectPublishingFact.v0': {
                 as: '$GitHubFact'
             },
-            '#@stream44.studio/t44/structs/ProjectPublishingFact.v0': {
+            '#t44/structs/ProjectPublishingFact.v0': {
                 as: '$StatusFact'
             },
             '#': {
                 GitHubApi: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/github.com/api.v0'
+                    value: 't44/caps/providers/github.com/api.v0'
                 },
                 push: {
                     type: CapsulePropertyTypes.Function,
@@ -72,4 +72,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/providers/github.com/ProjectPublishing.v0'
+capsule['#'] = 't44/caps/providers/github.com/ProjectPublishing.v0'

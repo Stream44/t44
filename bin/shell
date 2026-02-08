@@ -9,14 +9,14 @@ await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) =>
             '#': {
                 cli: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@workspace.foundation/t44/caps/WorkspaceShellCli.v0'
+                    value: '@t44.sh/t44/caps/WorkspaceShellCli.v0'
                 },
             }
         }
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: '@workspace.foundation/t44/.workspace/bin/shell'
+        capsuleName: '@t44.sh/t44/.workspace/bin/shell'
     })
     return { spine }
 }, async ({ spine, apis }: any) => {

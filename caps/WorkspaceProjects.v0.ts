@@ -15,16 +15,16 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/WorkspaceConfig.v0': {
+            '#t44/structs/WorkspaceConfig.v0': {
                 as: '$WorkspaceConfig'
             },
-            '#@stream44.studio/t44/structs/WorkspaceProjectsConfig.v0': {
+            '#t44/structs/WorkspaceProjectsConfig.v0': {
                 as: '$WorkspaceProjectsConfig',
             },
-            '#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0': {
+            '#t44/structs/ProjectDeploymentConfig.v0': {
                 as: '$ProjectDeploymentConfig',
             },
-            '#@stream44.studio/t44/structs/WorkspaceRepositories.v0': {
+            '#t44/structs/WorkspaceRepositories.v0': {
                 as: '$WorkspaceRepositories'
             },
             '#': {
@@ -59,23 +59,24 @@ export async function capsule({
                         // Pre-fill config with scanned projects that are not yet configured
                         for (const dirName of scannedDirs) {
                             if (!configuredProjects[dirName]) {
-                                const sourceDir = join(workspaceRootDir, dirName)
+                                const sourceDir = `resolve('\${__dirname}/../${dirName}')`
                                 await this.$WorkspaceProjectsConfig.setConfigValue(['projects', dirName, 'sourceDir'], sourceDir)
-                                configuredProjects[dirName] = { sourceDir }
+                                configuredProjects[dirName] = { sourceDir: join(workspaceRootDir, dirName) }
                             }
                         }
 
                         // Build projects from config values, validating each
                         const projects: Record<string, { sourceDir: string, git: any, deployments: Record<string, any>, repositories: Record<string, any> }> = {}
 
-                        for (const [projectName, projectConfig] of Object.entries(configuredProjects)) {
+                        const sortedProjectEntries = Object.entries(configuredProjects).sort(([a], [b]) => a.localeCompare(b))
+                        for (const [projectName, projectConfig] of sortedProjectEntries) {
                             const typedConfig = projectConfig as any
 
                             if (!typedConfig.sourceDir) {
                                 throw new Error(
                                     `Project '${projectName}' has no sourceDir configured.\n` +
                                     `  Fix in: ${configFilepath}\n` +
-                                    `  Under: '#@stream44.studio/t44/structs/WorkspaceProjectsConfig.v0' → projects → ${projectName}`
+                                    `  Under: '#t44/structs/WorkspaceProjectsConfig.v0' → projects → ${projectName}`
                                 )
                             }
 
@@ -87,7 +88,7 @@ export async function capsule({
                                     throw new Error(
                                         `Project '${projectName}' sourceDir is not a directory: ${resolvedSourceDir}\n` +
                                         `  Fix in: ${configFilepath}\n` +
-                                        `  Under: '#@stream44.studio/t44/structs/WorkspaceProjectsConfig.v0' → projects → ${projectName} → sourceDir`
+                                        `  Under: '#t44/structs/WorkspaceProjectsConfig.v0' → projects → ${projectName} → sourceDir`
                                     )
                                 }
                             } catch (err: any) {
@@ -95,7 +96,7 @@ export async function capsule({
                                     throw new Error(
                                         `Project '${projectName}' sourceDir does not exist: ${resolvedSourceDir}\n` +
                                         `  Fix in: ${configFilepath}\n` +
-                                        `  Under: '#@stream44.studio/t44/structs/WorkspaceProjectsConfig.v0' → projects → ${projectName} → sourceDir`
+                                        `  Under: '#t44/structs/WorkspaceProjectsConfig.v0' → projects → ${projectName} → sourceDir`
                                     )
                                 }
                                 throw err
@@ -334,7 +335,7 @@ export async function capsule({
                             for (const repoName of Object.keys(repositories)) {
                                 console.log(chalk.gray(`  - ${repoName}`))
                             }
-                            console.log()
+                            console.log('')
                             throw new Error(`No repositories found matching: ${workspaceProject}`)
                         }
 
@@ -420,7 +421,7 @@ export async function capsule({
                             for (const projectName of Object.keys(deployments)) {
                                 console.log(chalk.gray(`  - ${projectName}`))
                             }
-                            console.log()
+                            console.log('')
                             throw new Error(`No deployments found matching: ${workspaceProject}`)
                         }
 
@@ -451,4 +452,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/WorkspaceProjects.v0'
+capsule['#'] = 't44/caps/WorkspaceProjects.v0'

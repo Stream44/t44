@@ -13,32 +13,32 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#@stream44.studio/t44/structs/ProjectDeploymentConfig.v0': {
+            '#t44/structs/ProjectDeploymentConfig.v0': {
                 as: '$ProjectDeploymentConfig',
             },
-            '#@stream44.studio/t44/structs/WorkspaceConfig.v0': {
+            '#t44/structs/WorkspaceConfig.v0': {
                 as: '$WorkspaceConfig'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspacePrompt.v0'
+                    value: 't44/caps/WorkspacePrompt.v0'
                 },
                 Vercel: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/vercel.com/ProjectDeployment.v0'
+                    value: 't44/caps/providers/vercel.com/ProjectDeployment.v0'
                 },
                 Bunny: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/bunny.net/ProjectDeployment.v0'
+                    value: 't44/caps/providers/bunny.net/ProjectDeployment.v0'
                 },
                 Dynadot: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/providers/dynadot.com/ProjectDeployment.v0'
+                    value: 't44/caps/providers/dynadot.com/ProjectDeployment.v0'
                 },
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/WorkspaceProjects.v0'
+                    value: 't44/caps/WorkspaceProjects.v0'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -241,7 +241,7 @@ export async function capsule({
                                         provider: providerConfig
                                     }
 
-                                    if (capsulePath === '@stream44.studio/t44/caps/providers/vercel.com/ProjectDeployment.v0') {
+                                    if (capsulePath === 't44/caps/providers/vercel.com/ProjectDeployment.v0') {
 
                                         if (deprovision) {
                                             // Check if project exists before attempting to deprovision
@@ -264,7 +264,7 @@ export async function capsule({
                                             })
                                         }
 
-                                    } else if (capsulePath === '@stream44.studio/t44/caps/providers/bunny.net/ProjectDeployment.v0') {
+                                    } else if (capsulePath === 't44/caps/providers/bunny.net/ProjectDeployment.v0') {
 
                                         if (deprovision) {
                                             await this.Bunny.deprovision({ config })
@@ -280,7 +280,7 @@ export async function capsule({
                                             })
                                         }
 
-                                    } else if (capsulePath === '@stream44.studio/t44/caps/providers/dynadot.com/ProjectDeployment.v0') {
+                                    } else if (capsulePath === 't44/caps/providers/dynadot.com/ProjectDeployment.v0') {
 
                                         if (deprovision) {
                                             await this.Dynadot.deprovision({ config })
@@ -324,7 +324,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/caps/ProjectDeployment.v0'
+capsule['#'] = 't44/caps/ProjectDeployment.v0'
 
 
 function orderAliasesByDependencies(deploymentConfig: Record<string, any>): string[] {
