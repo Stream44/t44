@@ -75,7 +75,38 @@ export async function capsule({
                             })
                         }
 
-                        // Phase 0: Copy source directories to central location
+                        // Phase 1: Bump versions on original source directories
+                        if (rc || release) {
+                            if (rc) console.log('[t44] Release candidate mode enabled\n')
+                            if (release) console.log('[t44] Release mode enabled\n')
+
+                            console.log('[t44] Bumping versions ...\n')
+
+                            const bumpedRepos = new Set<string>()
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                const providers = Array.isArray((repoConfig as any).providers)
+                                    ? (repoConfig as any).providers
+                                    : (repoConfig as any).provider
+                                        ? [(repoConfig as any).provider]
+                                        : []
+
+                                for (const providerConfig of providers) {
+                                    if (providerConfig.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0' && !bumpedRepos.has(repoName)) {
+                                        console.log(`=> Bumping version for '${repoName}' ...\n`)
+                                        bumpedRepos.add(repoName)
+
+                                        await this.NpmRegistry.bump({
+                                            config: { ...repoConfig, provider: providerConfig },
+                                            options: { rc, release }
+                                        })
+                                    }
+                                }
+                            }
+
+                            console.log('[t44] Version bump complete!\n')
+                        }
+
+                        // Phase 2: Copy source directories to central location
                         console.log('[t44] Copying source directories to central location ...\n')
                         const centralSourceDirs: Map<string, string> = new Map()
 
@@ -130,8 +161,60 @@ export async function capsule({
                             }
                         }
 
-                        // Phase 1: Prepare - analyze all packages and collect metadata
-                        console.log('[t44] Analyzing packages ...\n')
+                        // Phase 3: Apply renames and resolve workspace dependencies on central source dirs
+                        const mappingsConfig = await this.$WorkspaceMappings.config
+                        const publishingMappings = mappingsConfig?.mappings?.['t44/caps/providers/ProjectPublishing.v0']
+                        if (publishingMappings?.npm) {
+                            const npmRenames: Record<string, string> = publishingMappings.npm
+                            const renameEntries = Object.entries(npmRenames)
+
+                            if (renameEntries.length > 0) {
+                                console.log('[t44] Applying package name renames ...\n')
+
+                                for (const dir of centralSourceDirs.values()) {
+                                    const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml}', {
+                                        cwd: dir,
+                                        absolute: true,
+                                        onlyFiles: true
+                                    })
+
+                                    for (const file of files) {
+                                        try {
+                                            let content = await readFile(file, 'utf-8')
+                                            let modified = false
+
+                                            for (const [workspaceName, publicName] of renameEntries) {
+                                                const regex = new RegExp(workspaceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                                                if (regex.test(content)) {
+                                                    content = content.replace(regex, publicName)
+                                                    modified = true
+                                                }
+                                            }
+
+                                            if (modified) {
+                                                await writeFile(file, content, 'utf-8')
+                                            }
+                                        } catch (e) {
+                                            // Skip files that can't be read as text
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        console.log('[t44] Resolving workspace dependencies ...\n')
+                        const finalizedRepos = new Set<string>()
+                        await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
+                            if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0' && !finalizedRepos.has(repoName)) {
+                                await this.NpmRegistry.finalize({
+                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir }
+                                })
+                                finalizedRepos.add(repoName)
+                            }
+                        })
+
+                        // Phase 4: Prepare all providers (copy from central source to projection dirs)
+                        console.log('[t44] Preparing providers ...\n')
                         const packageMetadata: Map<string, any> = new Map()
                         const gitMetadata: Map<string, any> = new Map()
 
@@ -158,142 +241,8 @@ export async function capsule({
                             }
                         })
 
-                        // Reusable closure: Apply package name renames from workspace mappings
-                        const applyRenames = async () => {
-                            const mappingsConfig = await this.$WorkspaceMappings.config
-                            const publishingMappings = mappingsConfig?.mappings?.['t44/caps/providers/ProjectPublishing.v0']
-                            if (!publishingMappings?.npm) return
-
-                            const npmRenames: Record<string, string> = publishingMappings.npm
-                            const renameEntries = Object.entries(npmRenames)
-                            if (renameEntries.length === 0) return
-
-                            // Collect all directories that need renaming (projection dirs + central source dirs)
-                            const dirsToRename: string[] = []
-
-                            for (const metadata of gitMetadata.values()) {
-                                if (metadata.projectProjectionDir) {
-                                    dirsToRename.push(metadata.projectProjectionDir)
-                                }
-                            }
-                            for (const metadata of packageMetadata.values()) {
-                                if (metadata.projectProjectionDir) {
-                                    dirsToRename.push(metadata.projectProjectionDir)
-                                }
-                            }
-                            for (const dir of centralSourceDirs.values()) {
-                                dirsToRename.push(dir)
-                            }
-
-                            if (dirsToRename.length === 0) return
-
-                            console.log('[t44] Applying package name renames ...\n')
-
-                            for (const dir of dirsToRename) {
-                                const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml}', {
-                                    cwd: dir,
-                                    absolute: true,
-                                    onlyFiles: true
-                                })
-
-                                for (const file of files) {
-                                    try {
-                                        let content = await readFile(file, 'utf-8')
-                                        let modified = false
-
-                                        for (const [workspaceName, publicName] of renameEntries) {
-                                            const regex = new RegExp(workspaceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-                                            if (regex.test(content)) {
-                                                content = content.replace(regex, publicName)
-                                                modified = true
-                                            }
-                                        }
-
-                                        if (modified) {
-                                            await writeFile(file, content, 'utf-8')
-                                        }
-                                    } catch (e) {
-                                        // Skip files that can't be read as text
-                                    }
-                                }
-                            }
-                        }
-
-                        // Reusable closure: Finalize workspace dependencies in all central source package.json files
-                        const finalizeDeps = async () => {
-                            console.log('[t44] Resolving workspace dependencies ...\n')
-                            const finalizedRepos = new Set<string>()
-                            await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                                if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0' && !finalizedRepos.has(repoName)) {
-                                    await this.NpmRegistry.finalize({
-                                        config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir }
-                                    })
-                                    finalizedRepos.add(repoName)
-                                }
-                            })
-                        }
-
-                        // Reusable closure: Re-prepare npm packages so projection dirs reflect current state
-                        const reprepareNpm = async () => {
-                            await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                                if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
-                                    const metadata = await this.NpmRegistry.prepare({
-                                        config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
-                                        projectionDir: join(
-                                            this.WorkspaceConfig.workspaceRootDir,
-                                            '.~o/workspace.foundation/o/npmjs.com'
-                                        ),
-                                        repoSourceDir
-                                    })
-                                    packageMetadata.set(repoName, metadata)
-                                }
-                            })
-                        }
-
-                        // Run rename and finalize
-                        await reprepareNpm()
-                        await applyRenames()
-                        await finalizeDeps()
-
-                        // Phase 2: Bump - only bump packages that have changes
+                        // Phase 5: Tag git repos with version
                         if (rc || release) {
-                            if (rc) console.log('[t44] Release candidate mode enabled\n')
-                            if (release) console.log('[t44] Release mode enabled\n')
-
-                            console.log('[t44] Bumping versions for changed packages ...\n')
-
-                            const bumpedRepos = new Set<string>()
-                            await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                                if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
-                                    const metadata = packageMetadata.get(repoName)
-
-                                    if (metadata && metadata.hasChanges) {
-                                        if (!bumpedRepos.has(repoName)) {
-                                            console.log(`\n=> Bumping version for '${repoName}' ...\n`)
-                                            bumpedRepos.add(repoName)
-                                        }
-
-                                        await this.NpmRegistry.bump({
-                                            config: { ...repoConfig, provider: providerConfig },
-                                            options: { rc, release },
-                                            repoSourceDir,
-                                            metadata
-                                        })
-                                    } else if (metadata && !bumpedRepos.has(repoName)) {
-                                        console.log(`\n=> Skipping '${repoName}' (no changes)\n`)
-                                        bumpedRepos.add(repoName)
-                                    }
-                                }
-                            })
-
-                            console.log('[t44] Version bump complete!\n')
-
-                            // After bump: re-run rename, finalize, and re-prepare with updated versions
-                            await reprepareNpm()
-                            await applyRenames()
-                            await finalizeDeps()
-
-                            // Tag git-scm repos with the bumped version
                             const taggedRepos = new Set<string>()
                             await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
                                 if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing.v0' && !taggedRepos.has(repoName)) {
@@ -302,7 +251,6 @@ export async function capsule({
 
                                     const { projectProjectionDir } = metadata
 
-                                    // Read the bumped version from the source package.json
                                     const packageJsonPath = join(repoSourceDir, 'package.json')
                                     try {
                                         const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
@@ -340,7 +288,7 @@ export async function capsule({
                             })
                         }
 
-                        // Phase 3: Push - publish packages
+                        // Phase 6: Push all providers
                         console.log('[t44] Publishing packages ...\n')
 
                         const processedRepos = new Set<string>()
@@ -351,8 +299,6 @@ export async function capsule({
                             }
 
                             console.log(`  -> Running provider '${capsuleName}' ...\n`)
-
-                            const metadata = packageMetadata.get(repoName)
 
                             if (capsuleName === 't44/caps/providers/github.com/ProjectPublishing.v0') {
                                 await this.GitHubRepository.push({
@@ -371,7 +317,7 @@ export async function capsule({
                                         this.WorkspaceConfig.workspaceRootDir,
                                         '.~o/workspace.foundation/o/npmjs.com'
                                     ),
-                                    metadata
+                                    metadata: packageMetadata.get(repoName)
                                 })
                             }
 
