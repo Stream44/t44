@@ -1,7 +1,7 @@
 
 import { join } from 'path'
 import { $ } from 'bun'
-import { mkdir, access, writeFile } from 'fs/promises'
+import { mkdir, access, readFile, writeFile } from 'fs/promises'
 import { constants } from 'fs'
 import chalk from 'chalk'
 
@@ -110,6 +110,39 @@ export async function capsule({
                             projectProjectionDir,
                             isNewEmptyRepo
                         }
+                    }
+                },
+                tag: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { metadata, repoSourceDir }: { metadata: any, repoSourceDir: string }) {
+
+                        const { projectProjectionDir } = metadata
+
+                        const packageJsonPath = join(repoSourceDir, 'package.json')
+                        const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
+                        const packageJson = JSON.parse(packageJsonContent)
+                        const version = packageJson.version
+                        const tag = `v${version}`
+
+                        // Check if tag already exists locally or on remote
+                        const localTagCheck = await $`git tag -l ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
+                        if (localTagCheck.text().trim() === tag) {
+                            throw new Error(
+                                `Git tag '${tag}' already exists.\n` +
+                                `  Please bump to a different version before pushing.`
+                            )
+                        }
+
+                        const remoteTagCheck = await $`git ls-remote --tags origin ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
+                        if (remoteTagCheck.text().trim().length > 0) {
+                            throw new Error(
+                                `Git tag '${tag}' already exists on remote.\n` +
+                                `  Please bump to a different version before pushing.`
+                            )
+                        }
+
+                        await $`git tag ${tag}`.cwd(projectProjectionDir)
+                        console.log(chalk.green(`  ✓ Tagged with ${tag}\n`))
                     }
                 },
                 push: {

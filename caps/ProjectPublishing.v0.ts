@@ -4,7 +4,6 @@ import { $ } from 'bun'
 import { mkdir, access, readFile, writeFile } from 'fs/promises'
 import { constants } from 'fs'
 import glob from 'fast-glob'
-import chalk from 'chalk'
 
 export async function capsule({
     encapsulate,
@@ -204,14 +203,29 @@ export async function capsule({
 
                         console.log('[t44] Resolving workspace dependencies ...\n')
                         const finalizedRepos = new Set<string>()
-                        await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                            if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing.v0' && !finalizedRepos.has(repoName)) {
-                                await this.NpmRegistry.finalize({
-                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir }
-                                })
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            if (!finalizedRepos.has(repoName)) {
+                                const repoSourceDir = centralSourceDirs.get(repoName)!
+                                // Find any npm provider for this repo to use its finalize method
+                                const providers = Array.isArray((repoConfig as any).providers)
+                                    ? (repoConfig as any).providers
+                                    : (repoConfig as any).provider
+                                        ? [(repoConfig as any).provider]
+                                        : []
+                                const npmProvider = providers.find((p: any) => p.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0')
+                                if (npmProvider) {
+                                    await this.NpmRegistry.finalize({
+                                        config: { ...repoConfig, provider: npmProvider, sourceDir: repoSourceDir }
+                                    })
+                                } else {
+                                    // For repos without npm provider, still resolve workspace deps using any npm provider config
+                                    await this.NpmRegistry.finalize({
+                                        config: { ...repoConfig, provider: providers[0], sourceDir: repoSourceDir }
+                                    })
+                                }
                                 finalizedRepos.add(repoName)
                             }
-                        })
+                        }
 
                         // Phase 4: Prepare all providers (copy from central source to projection dirs)
                         console.log('[t44] Preparing providers ...\n')
@@ -249,41 +263,8 @@ export async function capsule({
                                     const metadata = gitMetadata.get(repoName)
                                     if (!metadata?.projectProjectionDir) return
 
-                                    const { projectProjectionDir } = metadata
-
-                                    const packageJsonPath = join(repoSourceDir, 'package.json')
-                                    try {
-                                        const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
-                                        const packageJson = JSON.parse(packageJsonContent)
-                                        const version = packageJson.version
-                                        const tag = `v${version}`
-
-                                        // Check if tag already exists locally or on remote
-                                        const localTagCheck = await $`git tag -l ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
-                                        if (localTagCheck.text().trim() === tag) {
-                                            throw new Error(
-                                                `Git tag '${tag}' already exists in repository '${repoName}'.\n` +
-                                                `  Please bump to a different version before pushing.`
-                                            )
-                                        }
-
-                                        const remoteTagCheck = await $`git ls-remote --tags origin ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
-                                        if (remoteTagCheck.text().trim().length > 0) {
-                                            throw new Error(
-                                                `Git tag '${tag}' already exists on remote for repository '${repoName}'.\n` +
-                                                `  Please bump to a different version before pushing.`
-                                            )
-                                        }
-
-                                        await $`git tag ${tag}`.cwd(projectProjectionDir)
-                                        console.log(chalk.green(`  ✓ Tagged repository '${repoName}' with ${tag}\n`))
-                                        taggedRepos.add(repoName)
-                                    } catch (error: any) {
-                                        if (error.message?.includes('already exists')) {
-                                            throw error
-                                        }
-                                        // Skip if package.json can't be read
-                                    }
+                                    await this.GitRepository.tag({ metadata, repoSourceDir })
+                                    taggedRepos.add(repoName)
                                 }
                             })
                         }
