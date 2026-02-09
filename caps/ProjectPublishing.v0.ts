@@ -74,42 +74,11 @@ export async function capsule({
                             })
                         }
 
-                        // Phase 1: Bump versions on original source directories
-                        if (rc || release) {
-                            if (rc) console.log('[t44] Release candidate mode enabled\n')
-                            if (release) console.log('[t44] Release mode enabled\n')
-
-                            console.log('[t44] Bumping versions ...\n')
-
-                            const bumpedRepos = new Set<string>()
-                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                                const providers = Array.isArray((repoConfig as any).providers)
-                                    ? (repoConfig as any).providers
-                                    : (repoConfig as any).provider
-                                        ? [(repoConfig as any).provider]
-                                        : []
-
-                                for (const providerConfig of providers) {
-                                    if (providerConfig.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0' && !bumpedRepos.has(repoName)) {
-                                        console.log(`=> Bumping version for '${repoName}' ...\n`)
-                                        bumpedRepos.add(repoName)
-
-                                        await this.NpmRegistry.bump({
-                                            config: { ...repoConfig, provider: providerConfig },
-                                            options: { rc, release }
-                                        })
-                                    }
-                                }
-                            }
-
-                            console.log('[t44] Version bump complete!\n')
-                        }
-
-                        // Phase 2: Copy source directories to central location
-                        console.log('[t44] Copying source directories to central location ...\n')
+                        // Phase 1: Copy source directories to central location (git-tracked)
+                        console.log('[t44] Syncing source directories to central repos ...\n')
                         const centralSourceDirs: Map<string, string> = new Map()
 
-                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                        const syncToCentral = async (repoName: string, repoConfig: any) => {
                             const projectSourceDir = join((repoConfig as any).sourceDir)
                             const repoSourceDir = join(
                                 this.WorkspaceConfig.workspaceRootDir,
@@ -117,9 +86,23 @@ export async function capsule({
                                 repoName
                             )
 
-                            console.log(`=> Syncing '${repoName}' to central location ...`)
-
                             await mkdir(repoSourceDir, { recursive: true })
+
+                            // Init git repo if not already
+                            const gitDir = join(repoSourceDir, '.git')
+                            let isGitRepo = false
+                            try {
+                                await access(gitDir, constants.F_OK)
+                                isGitRepo = true
+                            } catch { }
+                            if (!isGitRepo) {
+                                await $`git init`.cwd(repoSourceDir).quiet()
+                                await $`git commit --allow-empty -m init`.cwd(repoSourceDir).quiet()
+                            }
+
+                            // Reset working tree to last commit before copying
+                            await $`git checkout -- .`.cwd(repoSourceDir).quiet().nothrow()
+                            await $`git clean -fd`.cwd(repoSourceDir).quiet().nothrow()
 
                             const gitignorePath = join(projectSourceDir, '.gitignore')
                             let gitignoreExists = false
@@ -134,7 +117,59 @@ export async function capsule({
                             await $`${rsyncArgs}`
 
                             centralSourceDirs.set(repoName, repoSourceDir)
+                            return repoSourceDir
+                        }
+
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            console.log(`=> Syncing '${repoName}' ...`)
+                            const repoSourceDir = await syncToCentral(repoName, repoConfig)
                             console.log(`   Synced to: ${repoSourceDir}\n`)
+                        }
+
+                        // Phase 2: Bump versions on original source directories
+                        if (rc || release) {
+                            if (rc) console.log('[t44] Release candidate mode enabled\n')
+                            if (release) console.log('[t44] Release mode enabled\n')
+
+                            console.log('[t44] Bumping versions ...\n')
+
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                const repoSourceDir = centralSourceDirs.get(repoName)!
+
+                                // Check if there are changes since last committed state
+                                await $`git add -A`.cwd(repoSourceDir).quiet()
+                                const diff = await $`git diff --cached --stat`.cwd(repoSourceDir).quiet().nothrow()
+                                const hasChanges = diff.text().trim().length > 0
+                                await $`git reset`.cwd(repoSourceDir).quiet().nothrow()
+
+                                if (!hasChanges) {
+                                    console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
+                                    continue
+                                }
+
+                                console.log(`=> Bumping version for '${repoName}' ...\n`)
+
+                                const providers = Array.isArray((repoConfig as any).providers)
+                                    ? (repoConfig as any).providers
+                                    : (repoConfig as any).provider
+                                        ? [(repoConfig as any).provider]
+                                        : []
+                                const npmProvider = providers.find((p: any) => p.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0')
+
+                                await this.NpmRegistry.bump({
+                                    config: { ...repoConfig, ...(npmProvider ? { provider: npmProvider } : {}) },
+                                    options: { rc, release }
+                                })
+
+                                // Re-sync after bump to pick up version change in central repo
+                                await syncToCentral(repoName, repoConfig)
+
+                                // Commit the new state
+                                await $`git add -A`.cwd(repoSourceDir).quiet()
+                                await $`git commit -m bump`.cwd(repoSourceDir).quiet().nothrow()
+                            }
+
+                            console.log('[t44] Version bump complete!\n')
                         }
 
                         // Helper to iterate providers with custom callback

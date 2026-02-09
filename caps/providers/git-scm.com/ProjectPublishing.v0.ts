@@ -124,19 +124,33 @@ export async function capsule({
                         const version = packageJson.version
                         const tag = `v${version}`
 
-                        // Check if tag already exists locally or on remote
+                        const headCommit = (await $`git rev-parse HEAD`.cwd(projectProjectionDir).quiet().nothrow()).text().trim()
+
+                        // Check if tag already exists locally
                         const localTagCheck = await $`git tag -l ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
                         if (localTagCheck.text().trim() === tag) {
+                            const tagCommit = (await $`git rev-parse ${tag}^{}`.cwd(projectProjectionDir).quiet().nothrow()).text().trim()
+                            if (tagCommit === headCommit) {
+                                console.log(chalk.gray(`  ○ Tag ${tag} already exists at current commit, skipping\n`))
+                                return
+                            }
                             throw new Error(
-                                `Git tag '${tag}' already exists.\n` +
+                                `Git tag '${tag}' already exists but points to a different commit.\n` +
                                 `  Please bump to a different version before pushing.`
                             )
                         }
 
+                        // Check if tag already exists on remote
                         const remoteTagCheck = await $`git ls-remote --tags origin ${tag}`.cwd(projectProjectionDir).quiet().nothrow()
-                        if (remoteTagCheck.text().trim().length > 0) {
+                        const remoteOutput = remoteTagCheck.text().trim()
+                        if (remoteOutput.length > 0) {
+                            const remoteCommit = remoteOutput.split(/\s+/)[0]
+                            if (remoteCommit === headCommit) {
+                                console.log(chalk.gray(`  ○ Tag ${tag} already exists on remote at current commit, skipping\n`))
+                                return
+                            }
                             throw new Error(
-                                `Git tag '${tag}' already exists on remote.\n` +
+                                `Git tag '${tag}' already exists on remote but points to a different commit.\n` +
                                 `  Please bump to a different version before pushing.`
                             )
                         }
