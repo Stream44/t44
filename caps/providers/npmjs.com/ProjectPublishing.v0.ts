@@ -20,9 +20,6 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule.v0': {},
-            '#t44/structs/WorkspaceRepositories.v0': {
-                as: '$WorkspaceRepositories'
-            },
             '#t44/structs/providers/npmjs.com/ProjectPublishingFact.v0': {
                 as: '$NpmFact'
             },
@@ -36,9 +33,7 @@ export async function capsule({
                 },
                 prepare: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, { projectionDir, config, repoSourceDir }: { projectionDir: string, config: any, repoSourceDir?: string }) {
-                        const repositoriesConfig = await this.$WorkspaceRepositories.config
-                        const { publicNpmPackageNames, workspaceNpmPackageNames, workspacePackageSourceDirs } = await buildWorkspacePackageMaps(repositoriesConfig)
+                    value: async function (this: any, { projectionDir, config }: { projectionDir: string, config: any }) {
 
                         const name = config.provider.config.PackageSettings.name
                         const projectSourceDir = join(config.sourceDir)
@@ -70,7 +65,6 @@ export async function capsule({
 
                         const packageJsonPath = join(projectProjectionDir, 'package.json')
                         const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
-                        const originalPackageJson = JSON.parse(packageJsonContent)
                         const packageJson = JSON.parse(packageJsonContent)
 
                         // Only remove private flag if not explicitly set to private in config
@@ -82,79 +76,9 @@ export async function capsule({
                         // Replace package name with public npm name
                         packageJson.name = name
 
-                        // Collect workspace packages that need to be renamed
-                        // Do this BEFORE updating dependencies so we have the original workspace names
-                        const renameWorkspacePackages = new Set<string>()
-
-                        // Always include the package's own workspace name for self-references
-                        const ownWorkspaceName = originalPackageJson.name
-                        if (ownWorkspaceName && publicNpmPackageNames[ownWorkspaceName]) {
-                            renameWorkspacePackages.add(ownWorkspaceName)
-                        }
-
-                        // Also include workspace packages used in dependencies
-                        const dependencyFields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
-                        for (const depField of dependencyFields) {
-                            if (packageJson[depField]) {
-                                for (const depName of Object.keys(packageJson[depField])) {
-                                    // Check if this is a workspace package
-                                    const workspaceDepName = workspaceNpmPackageNames[depName] || depName
-                                    if (workspacePackageSourceDirs[workspaceDepName]) {
-                                        renameWorkspacePackages.add(workspaceDepName)
-                                    }
-                                }
-                            }
-                        }
-
-                        // Replace workspace package names in files for both projection and central directories
-                        if (renameWorkspacePackages.size > 0) {
-                            const dirsToProcess = [projectProjectionDir]
-                            if (repoSourceDir) dirsToProcess.push(repoSourceDir)
-
-                            for (const dir of dirsToProcess) {
-                                const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml}', {
-                                    cwd: dir,
-                                    absolute: true,
-                                    onlyFiles: true
-                                })
-
-                                for (const file of files) {
-                                    try {
-                                        let content = await readFile(file, 'utf-8')
-                                        let modified = false
-
-                                        // Only replace workspace packages that are used in dependencies
-                                        for (const workspaceName of Array.from(renameWorkspacePackages)) {
-                                            const publicName = publicNpmPackageNames[workspaceName]
-                                            if (publicName) {
-                                                const regex = new RegExp(workspaceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-                                                if (regex.test(content)) {
-                                                    content = content.replace(regex, publicName)
-                                                    modified = true
-                                                }
-                                            }
-                                        }
-
-                                        if (modified) {
-                                            await writeFile(file, content, 'utf-8')
-                                        }
-                                    } catch (e) {
-                                        // Skip files that can't be read as text (binary files, etc.)
-                                    }
-                                }
-                            }
-                        }
-
-                        await updateWorkspaceDependencies(packageJson, workspaceNpmPackageNames, workspacePackageSourceDirs, publicNpmPackageNames)
-
                         const modifiedPackageJsonContent = JSON.stringify(packageJson, null, 4) + '\n'
                         await writeFile(packageJsonPath, modifiedPackageJsonContent, 'utf-8')
 
-                        // Also update package.json in central source directory if provided
-                        if (repoSourceDir) {
-                            const centralPackageJsonPath = join(repoSourceDir, 'package.json')
-                            await writeFile(centralPackageJsonPath, modifiedPackageJsonContent, 'utf-8')
-                        }
 
                         const localVersion = packageJson.version
 
@@ -277,9 +201,7 @@ export async function capsule({
                             versionMatchesChecksum,
                             localMatchesAnyTag,
                             hasChanges,
-                            publishedFiles,
-                            workspaceNpmPackageNames,
-                            workspacePackageSourceDirs
+                            publishedFiles
                         }
                     }
                 },
@@ -556,89 +478,3 @@ export async function capsule({
     })
 }
 capsule['#'] = 't44/caps/providers/npmjs.com/ProjectPublishing.v0'
-
-
-
-async function buildWorkspacePackageMaps(repositoriesConfig: any) {
-    const publicNpmPackageNames: Record<string, string> = {}
-    const workspaceNpmPackageNames: Record<string, string> = {}
-    const workspacePackageSourceDirs: Record<string, string> = {}
-
-    if (repositoriesConfig?.repositories) {
-        for (const [repoKey, repoConfig] of Object.entries(repositoriesConfig.repositories as any)) {
-            const providers = (repoConfig as any).providers || ((repoConfig as any).provider ? [(repoConfig as any).provider] : [])
-
-            for (const provider of providers) {
-                if (provider.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0') {
-                    const sourceDir = (repoConfig as any).sourceDir
-                    const packageJsonPath = join(sourceDir, 'package.json')
-
-                    try {
-                        const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
-                        const packageJson = JSON.parse(packageJsonContent)
-                        const workspacePackageName = packageJson.name
-                        const publicPackageName = provider.config.PackageSettings.name
-
-                        publicNpmPackageNames[workspacePackageName] = publicPackageName
-                        workspaceNpmPackageNames[publicPackageName] = workspacePackageName
-                        workspacePackageSourceDirs[workspacePackageName] = sourceDir
-                    } catch (error) {
-                        console.warn(`Could not read package.json from ${packageJsonPath}:`, error)
-                    }
-                }
-            }
-        }
-    }
-
-    return { publicNpmPackageNames, workspaceNpmPackageNames, workspacePackageSourceDirs }
-}
-
-async function updateWorkspaceDependencies(
-    packageJson: any,
-    workspaceNpmPackageNames: Record<string, string>,
-    workspacePackageSourceDirs: Record<string, string>,
-    publicNpmPackageNames: Record<string, string>
-) {
-    const dependencyFields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
-    const currentPackageName = packageJson.name
-
-    for (const depField of dependencyFields) {
-        if (packageJson[depField]) {
-            const updatedDeps: Record<string, string> = {}
-
-            for (const [depName, depVersion] of Object.entries(packageJson[depField])) {
-                // Skip self-referencing dependencies
-                if (depName === currentPackageName) {
-                    continue
-                }
-
-                if (typeof depVersion === 'string' && depVersion.startsWith('workspace:')) {
-                    try {
-                        const workspaceDepName = workspaceNpmPackageNames[depName] || depName
-                        const depSourceDir = workspacePackageSourceDirs[workspaceDepName]
-
-                        if (!depSourceDir) {
-                            console.warn(`Could not find source directory for workspace dependency ${depName} (${workspaceDepName})`)
-                            continue
-                        }
-
-                        const depPackageJsonPath = join(depSourceDir, 'package.json')
-                        const depPackageJsonContent = await readFile(depPackageJsonPath, 'utf-8')
-                        const depPackageJson = JSON.parse(depPackageJsonContent)
-
-                        // Replace workspace package name with public package name
-                        const publicDepName = publicNpmPackageNames[workspaceDepName] || depName
-                        updatedDeps[publicDepName] = `^${depPackageJson.version}`
-                    } catch (error) {
-                        console.warn(`Could not resolve workspace dependency ${depName}:`, error)
-                    }
-                } else {
-                    // Keep non-workspace dependencies as-is
-                    updatedDeps[depName] = depVersion as string
-                }
-            }
-
-            packageJson[depField] = updatedDeps
-        }
-    }
-}
