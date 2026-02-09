@@ -7,6 +7,13 @@ import glob from 'fast-glob'
 import chalk from 'chalk'
 import { createHash } from 'crypto'
 
+function detectIndent(content: string): number {
+    const match = content.match(/^\{\s*\n([ \t]+)/)
+    if (match) {
+        return match[1].length
+    }
+    return 2
+}
 
 export async function capsule({
     encapsulate,
@@ -65,6 +72,7 @@ export async function capsule({
 
                         const packageJsonPath = join(projectProjectionDir, 'package.json')
                         const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
+                        const indent = detectIndent(packageJsonContent)
                         const packageJson = JSON.parse(packageJsonContent)
 
                         // Only remove private flag if not explicitly set to private in config
@@ -76,8 +84,10 @@ export async function capsule({
                         // Replace package name with public npm name
                         packageJson.name = name
 
-                        const modifiedPackageJsonContent = JSON.stringify(packageJson, null, 4) + '\n'
-                        await writeFile(packageJsonPath, modifiedPackageJsonContent, 'utf-8')
+                        const modifiedPackageJsonContent = JSON.stringify(packageJson, null, indent) + '\n'
+                        if (modifiedPackageJsonContent !== packageJsonContent) {
+                            await writeFile(packageJsonPath, modifiedPackageJsonContent, 'utf-8')
+                        }
 
 
                         const localVersion = packageJson.version

@@ -4,6 +4,14 @@ import { readFile, writeFile } from 'fs/promises'
 import glob from 'fast-glob'
 import chalk from 'chalk'
 
+function detectIndent(content: string): number {
+    const match = content.match(/^\{\s*\n([ \t]+)/)
+    if (match) {
+        return match[1].length
+    }
+    return 2
+}
+
 export async function capsule({
     encapsulate,
     CapsulePropertyTypes,
@@ -76,13 +84,16 @@ export async function capsule({
                                 const packageJsonPath = join(repoSourceDir as string, 'package.json')
 
                                 const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
+                                const indent = detectIndent(packageJsonContent)
                                 const packageJson = JSON.parse(packageJsonContent)
 
                                 await updateWorkspaceDependencies(packageJson, workspaceNpmPackageNames, workspacePackageSourceDirs, publicNpmPackageNames)
 
-                                await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8')
-
-                                console.log(chalk.green(`  ✓ Updated workspace dependencies in ${packageJsonPath}\n`))
+                                const updatedContent = JSON.stringify(packageJson, null, indent) + '\n'
+                                if (updatedContent !== packageJsonContent) {
+                                    await writeFile(packageJsonPath, updatedContent, 'utf-8')
+                                    console.log(chalk.green(`  ✓ Updated workspace dependencies in ${packageJsonPath}\n`))
+                                }
                             }
                         }
                     }
@@ -133,7 +144,8 @@ export async function capsule({
                         }
 
                         packageJson.version = newVersion
-                        const updatedContent = JSON.stringify(packageJson, null, 2) + '\n'
+                        const indent = detectIndent(packageJsonContent)
+                        const updatedContent = JSON.stringify(packageJson, null, indent) + '\n'
                         await writeFile(packageJsonPath, updatedContent, 'utf-8')
 
                         console.log(chalk.green(`  ✓ Updated ${packageJsonPath} to version ${newVersion}\n`))
