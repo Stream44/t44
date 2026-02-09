@@ -44,7 +44,7 @@ export async function capsule({
                                 console.log('[t44] Applying package name renames ...\n')
 
                                 for (const dir of dirs) {
-                                    const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml}', {
+                                    const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml,sh}', {
                                         cwd: dir,
                                         absolute: true,
                                         onlyFiles: true
