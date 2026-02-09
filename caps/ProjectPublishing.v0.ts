@@ -139,12 +139,25 @@ export async function capsule({
                             })
                         }
 
-                        // Phase 2: Apply renames and resolve workspace dependencies
+                        // Phase 2: Detect source changes before any modifications
+                        const bumpedRepos = new Set<string>()
+                        const reposWithChanges = new Set<string>()
+
+                        if (rc || release) {
+                            for (const [repoName] of Object.entries(matchingRepositories)) {
+                                const repoSourceDir = centralSourceDirs.get(repoName)!
+                                await $`git add -A`.cwd(repoSourceDir).quiet()
+                                const diff = await $`git diff --cached --stat`.cwd(repoSourceDir).quiet().nothrow()
+                                const hasChanges = diff.text().trim().length > 0
+                                await $`git reset`.cwd(repoSourceDir).quiet().nothrow()
+                                if (hasChanges) reposWithChanges.add(repoName)
+                            }
+                        }
+
+                        // Phase 3: Apply renames and resolve workspace dependencies
                         await applyRenamesAndFinalize()
 
-                        // Phase 3: Bump versions on original source directories
-                        const bumpedRepos = new Set<string>()
-
+                        // Phase 4: Bump versions on original source directories
                         if (rc || release) {
                             if (rc) console.log('[t44] Release candidate mode enabled\n')
                             if (release) console.log('[t44] Release mode enabled\n')
@@ -152,20 +165,7 @@ export async function capsule({
                             console.log('[t44] Bumping versions ...\n')
 
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                                const repoSourceDir = centralSourceDirs.get(repoName)!
-
-                                // Check if there are changes since last committed state
-                                await $`git add -A`.cwd(repoSourceDir).quiet()
-                                const diff = await $`git diff --cached --stat`.cwd(repoSourceDir).quiet().nothrow()
-                                const diffText = diff.text().trim()
-                                const hasChanges = diffText.length > 0
-                                await $`git reset`.cwd(repoSourceDir).quiet().nothrow()
-
-                                if (hasChanges) {
-                                    console.log(`[debug] Changes detected in '${repoName}':\n${diffText}\n`)
-                                }
-
-                                if (!hasChanges) {
+                                if (!reposWithChanges.has(repoName)) {
                                     console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
                                     continue
                                 }
@@ -183,21 +183,14 @@ export async function capsule({
                                 await syncToCentral(repoName, repoConfig)
                             }
 
-                            // Re-apply renames and finalize only on bumped repos
+                            // Re-apply renames and resolve workspace deps on all repos
+                            // (non-bumped repos need updated dependency versions too)
                             if (bumpedRepos.size > 0) {
-                                const bumpedDirs = new Map(
-                                    Array.from(bumpedRepos)
-                                        .filter(name => centralSourceDirs.has(name))
-                                        .map(name => [name, centralSourceDirs.get(name)!])
-                                )
-                                await this.SemverProvider.rename({
-                                    dirs: bumpedDirs.values(),
-                                    repos: Object.fromEntries(bumpedDirs)
-                                })
+                                await applyRenamesAndFinalize()
                             }
 
-                            // Commit the final state only for bumped repos
-                            for (const repoName of bumpedRepos) {
+                            // Commit the final state for all repos that have changes
+                            for (const [repoName] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = centralSourceDirs.get(repoName)!
                                 await $`git add -A`.cwd(repoSourceDir).quiet()
                                 await $`git commit -m bump`.cwd(repoSourceDir).quiet().nothrow()
