@@ -157,8 +157,13 @@ export async function capsule({
                                 // Check if there are changes since last committed state
                                 await $`git add -A`.cwd(repoSourceDir).quiet()
                                 const diff = await $`git diff --cached --stat`.cwd(repoSourceDir).quiet().nothrow()
-                                const hasChanges = diff.text().trim().length > 0
+                                const diffText = diff.text().trim()
+                                const hasChanges = diffText.length > 0
                                 await $`git reset`.cwd(repoSourceDir).quiet().nothrow()
+
+                                if (hasChanges) {
+                                    console.log(`[debug] Changes detected in '${repoName}':\n${diffText}\n`)
+                                }
 
                                 if (!hasChanges) {
                                     console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
