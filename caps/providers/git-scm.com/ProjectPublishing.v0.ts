@@ -134,6 +134,11 @@ export async function capsule({
                                 console.log(chalk.gray(`  ○ Tag ${tag} already exists at current commit, skipping\n`))
                                 return
                             }
+                            console.log(chalk.yellow(`\n  Tag ${tag} exists at ${tagCommit.slice(0, 8)} but HEAD is ${headCommit.slice(0, 8)}\n`))
+                            const diffOutput = await $`git diff ${tag} HEAD`.cwd(projectProjectionDir).quiet().nothrow()
+                            if (diffOutput.text().trim().length > 0) {
+                                console.log(diffOutput.text())
+                            }
                             throw new Error(
                                 `Git tag '${tag}' already exists but points to a different commit.\n` +
                                 `  Please bump to a different version before pushing.`
@@ -148,6 +153,11 @@ export async function capsule({
                             if (remoteCommit === headCommit) {
                                 console.log(chalk.gray(`  ○ Tag ${tag} already exists on remote at current commit, skipping\n`))
                                 return
+                            }
+                            console.log(chalk.yellow(`\n  Tag ${tag} exists on remote at ${remoteCommit.slice(0, 8)} but HEAD is ${headCommit.slice(0, 8)}\n`))
+                            const remoteDiffOutput = await $`git diff ${remoteCommit} HEAD`.cwd(projectProjectionDir).quiet().nothrow()
+                            if (remoteDiffOutput.text().trim().length > 0) {
+                                console.log(remoteDiffOutput.text())
                             }
                             throw new Error(
                                 `Git tag '${tag}' already exists on remote but points to a different commit.\n` +

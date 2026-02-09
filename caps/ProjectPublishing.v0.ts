@@ -1,9 +1,8 @@
 
 import { join } from 'path'
 import { $ } from 'bun'
-import { mkdir, access, readFile, writeFile } from 'fs/promises'
+import { mkdir, access } from 'fs/promises'
 import { constants } from 'fs'
-import glob from 'fast-glob'
 
 export async function capsule({
     encapsulate,
@@ -23,9 +22,6 @@ export async function capsule({
             '#t44/structs/WorkspaceRepositories.v0': {
                 as: '$WorkspaceRepositories'
             },
-            '#t44/structs/WorkspaceMappings.v0': {
-                as: '$WorkspaceMappings'
-            },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
@@ -34,6 +30,10 @@ export async function capsule({
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/WorkspaceProjects.v0'
+                },
+                SemverProvider: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: 't44/caps/providers/semver.org/ProjectPublishing.v0'
                 },
                 GitRepository: {
                     type: CapsulePropertyTypes.Mapping,
@@ -126,7 +126,23 @@ export async function capsule({
                             console.log(`   Synced to: ${repoSourceDir}\n`)
                         }
 
-                        // Phase 2: Bump versions on original source directories
+                        // Helper to apply renames and resolve workspace dependencies on central source dirs
+                        const applyRenamesAndFinalize = async () => {
+                            const matchingDirs = new Map(
+                                Object.keys(matchingRepositories)
+                                    .filter(name => centralSourceDirs.has(name))
+                                    .map(name => [name, centralSourceDirs.get(name)!])
+                            )
+                            await this.SemverProvider.rename({
+                                dirs: matchingDirs.values(),
+                                repos: Object.fromEntries(matchingDirs)
+                            })
+                        }
+
+                        // Phase 2: Apply renames and resolve workspace dependencies
+                        await applyRenamesAndFinalize()
+
+                        // Phase 3: Bump versions on original source directories
                         if (rc || release) {
                             if (rc) console.log('[t44] Release candidate mode enabled\n')
                             if (release) console.log('[t44] Release mode enabled\n')
@@ -149,22 +165,21 @@ export async function capsule({
 
                                 console.log(`=> Bumping version for '${repoName}' ...\n`)
 
-                                const providers = Array.isArray((repoConfig as any).providers)
-                                    ? (repoConfig as any).providers
-                                    : (repoConfig as any).provider
-                                        ? [(repoConfig as any).provider]
-                                        : []
-                                const npmProvider = providers.find((p: any) => p.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0')
-
-                                await this.NpmRegistry.bump({
-                                    config: { ...repoConfig, ...(npmProvider ? { provider: npmProvider } : {}) },
+                                await this.SemverProvider.bump({
+                                    config: repoConfig,
                                     options: { rc, release }
                                 })
 
                                 // Re-sync after bump to pick up version change in central repo
                                 await syncToCentral(repoName, repoConfig)
+                            }
 
-                                // Commit the new state
+                            // Re-apply renames and finalize after bump (version changed)
+                            await applyRenamesAndFinalize()
+
+                            // Commit the final state (source + renames + resolved deps + bumped version)
+                            for (const [repoName] of Object.entries(matchingRepositories)) {
+                                const repoSourceDir = centralSourceDirs.get(repoName)!
                                 await $`git add -A`.cwd(repoSourceDir).quiet()
                                 await $`git commit -m bump`.cwd(repoSourceDir).quiet().nothrow()
                             }
@@ -192,73 +207,6 @@ export async function capsule({
                                     const capsuleName = providerConfig.capsule
                                     await callback({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir })
                                 }
-                            }
-                        }
-
-                        // Phase 3: Apply renames and resolve workspace dependencies on central source dirs
-                        const mappingsConfig = await this.$WorkspaceMappings.config
-                        const publishingMappings = mappingsConfig?.mappings?.['t44/caps/providers/ProjectPublishing.v0']
-                        if (publishingMappings?.npm) {
-                            const npmRenames: Record<string, string> = publishingMappings.npm
-                            const renameEntries = Object.entries(npmRenames)
-
-                            if (renameEntries.length > 0) {
-                                console.log('[t44] Applying package name renames ...\n')
-
-                                for (const dir of centralSourceDirs.values()) {
-                                    const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml}', {
-                                        cwd: dir,
-                                        absolute: true,
-                                        onlyFiles: true
-                                    })
-
-                                    for (const file of files) {
-                                        try {
-                                            let content = await readFile(file, 'utf-8')
-                                            let modified = false
-
-                                            for (const [workspaceName, publicName] of renameEntries) {
-                                                const regex = new RegExp(workspaceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-                                                if (regex.test(content)) {
-                                                    content = content.replace(regex, publicName)
-                                                    modified = true
-                                                }
-                                            }
-
-                                            if (modified) {
-                                                await writeFile(file, content, 'utf-8')
-                                            }
-                                        } catch (e) {
-                                            // Skip files that can't be read as text
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        console.log('[t44] Resolving workspace dependencies ...\n')
-                        const finalizedRepos = new Set<string>()
-                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            if (!finalizedRepos.has(repoName)) {
-                                const repoSourceDir = centralSourceDirs.get(repoName)!
-                                // Find any npm provider for this repo to use its finalize method
-                                const providers = Array.isArray((repoConfig as any).providers)
-                                    ? (repoConfig as any).providers
-                                    : (repoConfig as any).provider
-                                        ? [(repoConfig as any).provider]
-                                        : []
-                                const npmProvider = providers.find((p: any) => p.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing.v0')
-                                if (npmProvider) {
-                                    await this.NpmRegistry.finalize({
-                                        config: { ...repoConfig, provider: npmProvider, sourceDir: repoSourceDir }
-                                    })
-                                } else {
-                                    // For repos without npm provider, still resolve workspace deps using any npm provider config
-                                    await this.NpmRegistry.finalize({
-                                        config: { ...repoConfig, provider: providers[0], sourceDir: repoSourceDir }
-                                    })
-                                }
-                                finalizedRepos.add(repoName)
                             }
                         }
 
