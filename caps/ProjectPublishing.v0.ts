@@ -149,6 +149,8 @@ export async function capsule({
 
                             console.log('[t44] Bumping versions ...\n')
 
+                            const bumpedRepos = new Set<string>()
+
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = centralSourceDirs.get(repoName)!
 
@@ -170,15 +172,27 @@ export async function capsule({
                                     options: { rc, release }
                                 })
 
+                                bumpedRepos.add(repoName)
+
                                 // Re-sync after bump to pick up version change in central repo
                                 await syncToCentral(repoName, repoConfig)
                             }
 
-                            // Re-apply renames and finalize after bump (version changed)
-                            await applyRenamesAndFinalize()
+                            // Re-apply renames and finalize only on bumped repos
+                            if (bumpedRepos.size > 0) {
+                                const bumpedDirs = new Map(
+                                    Array.from(bumpedRepos)
+                                        .filter(name => centralSourceDirs.has(name))
+                                        .map(name => [name, centralSourceDirs.get(name)!])
+                                )
+                                await this.SemverProvider.rename({
+                                    dirs: bumpedDirs.values(),
+                                    repos: Object.fromEntries(bumpedDirs)
+                                })
+                            }
 
-                            // Commit the final state (source + renames + resolved deps + bumped version)
-                            for (const [repoName] of Object.entries(matchingRepositories)) {
+                            // Commit the final state only for bumped repos
+                            for (const repoName of bumpedRepos) {
                                 const repoSourceDir = centralSourceDirs.get(repoName)!
                                 await $`git add -A`.cwd(repoSourceDir).quiet()
                                 await $`git commit -m bump`.cwd(repoSourceDir).quiet().nothrow()
