@@ -1,40 +1,87 @@
 {
-  "name": "t44",
-  "version": "0.2.0-rc.17",
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Stream44/t44.git"
-  },
-  "type": "module",
-  "bin": {
-    "t44": "./bin/t44"
-  },
-  "exports": {
-    "./caps/WorkspaceConfig.v0": "./caps/WorkspaceConfig.v0.ts"
-  },
-  "dependencies": {
-    "js-yaml": "^4.1.0",
-    "commander": "^14.0.0",
-    "chalk": "^5.6.2",
-    "dotenv": "^17.2.3",
-    "fast-glob": "^3.3.3",
-    "inquirer": "^12.4.0",
-    "@ucanto/principal": "^9.0.3",
-    "@ucanto/server": "^11.0.3",
-    "@stream44.studio/encapsulate": "^0.2.0-rc.15"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.3.4",
-    "@types/node": "^25.0.3",
-    "@types/js-yaml": "^4.0.9",
-    "bun-types": "^1.3.4",
-    "upload-to-bunny": "^2.1.0",
-    "axios": "^1.13.4",
-    "vercel": "^50.4.9",
-    "turbo": "^2.7.5"
-  },
-  "workspaces": [
-    "caps/providers/vercel.com"
-  ]
+    "name": "t44",
+    "version": "0.2.0-rc.18",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Stream44/t44.git"
+    },
+    "type": "module",
+    "bin": {
+        "t44": "./bin/t44"
+    },
+    "exports": {
+        "./caps/HomeRegistry.v0": "./caps/HomeRegistry.v0.ts",
+        "./caps/OpenApiSchema.v0": "./caps/OpenApiSchema.v0.ts",
+        "./caps/ProjectDeployment.v0": "./caps/ProjectDeployment.v0.ts",
+        "./caps/ProjectDevelopment.v0": "./caps/ProjectDevelopment.v0.ts",
+        "./caps/ProjectPublishing.v0": "./caps/ProjectPublishing.v0.ts",
+        "./caps/ProjectRack.v0": "./caps/ProjectRack.v0.ts",
+        "./caps/WorkspaceCli.v0": "./caps/WorkspaceCli.v0.ts",
+        "./caps/WorkspaceConfig.v0": "./caps/WorkspaceConfig.v0.ts",
+        "./caps/WorkspaceConnection.v0": "./caps/WorkspaceConnection.v0.ts",
+        "./caps/WorkspaceEntityConfig.v0": "./caps/WorkspaceEntityConfig.v0.ts",
+        "./caps/WorkspaceEntityFact.v0": "./caps/WorkspaceEntityFact.v0.ts",
+        "./caps/WorkspaceInfo.v0": "./caps/WorkspaceInfo.v0.ts",
+        "./caps/WorkspaceInit.v0": "./caps/WorkspaceInit.v0.ts",
+        "./caps/WorkspaceKey.v0": "./caps/WorkspaceKey.v0.ts",
+        "./caps/WorkspaceProjects.v0": "./caps/WorkspaceProjects.v0.ts",
+        "./caps/WorkspacePrompt.v0": "./caps/WorkspacePrompt.v0.ts",
+        "./caps/WorkspaceShell.v0": "./caps/WorkspaceShell.v0.ts",
+        "./caps/WorkspaceShellCli.v0": "./caps/WorkspaceShellCli.v0.ts",
+        "./caps/WorkspaceTest.v0": "./caps/WorkspaceTest.v0.ts",
+        "./caps/providers/bunny.net/ProjectDeployment.v0": "./caps/providers/bunny.net/ProjectDeployment.v0.ts",
+        "./caps/providers/dynadot.com/ProjectDeployment.v0": "./caps/providers/dynadot.com/ProjectDeployment.v0.ts",
+        "./caps/providers/git-scm.com/ProjectPublishing.v0": "./caps/providers/git-scm.com/ProjectPublishing.v0.ts",
+        "./caps/providers/github.com/ProjectPublishing.v0": "./caps/providers/github.com/ProjectPublishing.v0.ts",
+        "./caps/providers/npmjs.com/ProjectPublishing.v0": "./caps/providers/npmjs.com/ProjectPublishing.v0.ts",
+        "./caps/providers/semver.org/ProjectPublishing.v0": "./caps/providers/semver.org/ProjectPublishing.v0.ts",
+        "./caps/providers/vercel.com/ProjectDeployment.v0": "./caps/providers/vercel.com/ProjectDeployment.v0.ts",
+        "./structs/HomeRegistryConfig.v0": "./structs/HomeRegistryConfig.v0.ts",
+        "./structs/ProjectDeploymentConfig.v0": "./structs/ProjectDeploymentConfig.v0.ts",
+        "./structs/ProjectDeploymentFact.v0": "./structs/ProjectDeploymentFact.v0.ts",
+        "./structs/ProjectPublishingFact.v0": "./structs/ProjectPublishingFact.v0.ts",
+        "./structs/ProjectRackConfig.v0": "./structs/ProjectRackConfig.v0.ts",
+        "./structs/WorkspaceCliConfig.v0": "./structs/WorkspaceCliConfig.v0.ts",
+        "./structs/WorkspaceConfig.v0": "./structs/WorkspaceConfig.v0.ts",
+        "./structs/WorkspaceKeyConfig.v0": "./structs/WorkspaceKeyConfig.v0.ts",
+        "./structs/WorkspaceMappings.v0": "./structs/WorkspaceMappings.v0.ts",
+        "./structs/WorkspaceProjectsConfig.v0": "./structs/WorkspaceProjectsConfig.v0.ts",
+        "./structs/WorkspaceRepositories.v0": "./structs/WorkspaceRepositories.v0.ts",
+        "./structs/WorkspaceShellConfig.v0": "./structs/WorkspaceShellConfig.v0.ts",
+        "./structs/providers/bunny.net/ProjectDeploymentFact.v0": "./structs/providers/bunny.net/ProjectDeploymentFact.v0.ts",
+        "./structs/providers/bunny.net/WorkspaceConnectionConfig.v0": "./structs/providers/bunny.net/WorkspaceConnectionConfig.v0.ts",
+        "./structs/providers/dynadot.com/DomainFact.v0": "./structs/providers/dynadot.com/DomainFact.v0.ts",
+        "./structs/providers/dynadot.com/WorkspaceConnectionConfig.v0": "./structs/providers/dynadot.com/WorkspaceConnectionConfig.v0.ts",
+        "./structs/providers/git-scm.com/ProjectPublishingFact.v0": "./structs/providers/git-scm.com/ProjectPublishingFact.v0.ts",
+        "./structs/providers/github.com/ProjectPublishingFact.v0": "./structs/providers/github.com/ProjectPublishingFact.v0.ts",
+        "./structs/providers/github.com/WorkspaceConnectionConfig.v0": "./structs/providers/github.com/WorkspaceConnectionConfig.v0.ts",
+        "./structs/providers/npmjs.com/ProjectPublishingFact.v0": "./structs/providers/npmjs.com/ProjectPublishingFact.v0.ts",
+        "./structs/providers/vercel.com/ProjectDeploymentFact.v0": "./structs/providers/vercel.com/ProjectDeploymentFact.v0.ts",
+        "./structs/providers/vercel.com/WorkspaceConnectionConfig.v0": "./structs/providers/vercel.com/WorkspaceConnectionConfig.v0.ts"
+    },
+    "dependencies": {
+        "js-yaml": "^4.1.0",
+        "commander": "^14.0.0",
+        "chalk": "^5.6.2",
+        "dotenv": "^17.2.3",
+        "fast-glob": "^3.3.3",
+        "inquirer": "^12.4.0",
+        "@ucanto/principal": "^9.0.3",
+        "@ucanto/server": "^11.0.3",
+        "@stream44.studio/encapsulate": "^0.2.0-rc.16"
+    },
+    "devDependencies": {
+        "@types/bun": "^1.3.4",
+        "@types/node": "^25.0.3",
+        "@types/js-yaml": "^4.0.9",
+        "bun-types": "^1.3.4",
+        "upload-to-bunny": "^2.1.0",
+        "axios": "^1.13.4",
+        "vercel": "^50.4.9",
+        "turbo": "^2.7.5"
+    },
+    "workspaces": [
+        "caps/providers/vercel.com"
+    ]
 }
