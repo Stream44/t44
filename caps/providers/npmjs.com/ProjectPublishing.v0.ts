@@ -290,7 +290,22 @@ export async function capsule({
                             metadata.anyTagMatches = anyTagMatches
                         }
 
-                        // Show file list (always show, even for first publish)
+                        // Get anyTagMatches from the earlier section
+                        const anyTagMatches = metadata.anyTagMatches || localMatchesAnyTag
+
+                        if (anyTagMatches) {
+                            console.log(chalk.green(`\n✓ Local package matches published version - no publish needed\n`))
+                            return
+                        } else if (versionExistsOnNpm && versionMatchesChecksum) {
+                            console.log(chalk.green(`\n✓ Version ${localVersion} already published with matching content\n`))
+                            return
+                        } else if (versionExistsOnNpm && !versionMatchesChecksum) {
+                            console.log(chalk.red(`\n✗ ERROR: Version ${localVersion} already exists on npm with different content!`))
+                            console.log(chalk.magenta(`  Run with --rc flag to bump the version and publish these changes`))
+                            return
+                        }
+
+                        // Show file list only when publishing
                         const localFilePaths = await glob('**/*', {
                             cwd: projectProjectionDir,
                             absolute: false,
@@ -404,21 +419,6 @@ export async function capsule({
                                     // Published package.json doesn't exist or can't be read
                                 }
                             }
-                        }
-
-                        // Get anyTagMatches from the earlier section
-                        const anyTagMatches = metadata.anyTagMatches || localMatchesAnyTag
-
-                        if (anyTagMatches) {
-                            console.log(chalk.green(`✓ Local package matches published version - no publish needed\n`))
-                            return
-                        } else if (versionExistsOnNpm && versionMatchesChecksum) {
-                            console.log(chalk.green(`✓ Version ${localVersion} already published with matching content\n`))
-                            return
-                        } else if (versionExistsOnNpm && !versionMatchesChecksum) {
-                            console.log(chalk.red(`\n✗ ERROR: Version ${localVersion} already exists on npm with different content!`))
-                            console.log(chalk.magenta(`  Run with --rc flag to bump the version and publish these changes`))
-                            return
                         }
 
                         // Determine npm tag based on version
