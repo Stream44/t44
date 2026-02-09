@@ -35,20 +35,29 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { dirs, repos }: { dirs: Iterable<string>, repos?: Record<string, any> }) {
                         const mappingsConfig = await this.$WorkspaceMappings.config
+                        console.log('[rename] mappingsConfig:', JSON.stringify(mappingsConfig, null, 2))
                         const publishingMappings = mappingsConfig?.mappings?.['t44/caps/providers/ProjectPublishing.v0']
+                        console.log('[rename] publishingMappings:', JSON.stringify(publishingMappings, null, 2))
                         if (publishingMappings?.npm) {
                             const npmRenames: Record<string, string> = publishingMappings.npm
                             const renameEntries = Object.entries(npmRenames)
+                                .sort((a, b) => b[0].length - a[0].length)
+
+                            console.log('[rename] renameEntries:', JSON.stringify(renameEntries))
 
                             if (renameEntries.length > 0) {
                                 console.log('[t44] Applying package name renames ...\n')
 
                                 for (const dir of dirs) {
+                                    console.log('[rename] Processing dir:', dir)
                                     const files = await glob('**/*.{ts,tsx,js,jsx,json,md,txt,yml,yaml,sh}', {
                                         cwd: dir,
                                         absolute: true,
-                                        onlyFiles: true
+                                        onlyFiles: true,
+                                        dot: true
                                     })
+
+                                    console.log('[rename] Found', files.length, 'files in', dir)
 
                                     for (const file of files) {
                                         try {
@@ -57,13 +66,15 @@ export async function capsule({
 
                                             for (const [workspaceName, publicName] of renameEntries) {
                                                 const regex = new RegExp(workspaceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-                                                if (regex.test(content)) {
-                                                    content = content.replace(regex, publicName)
+                                                const replaced = content.replace(regex, publicName)
+                                                if (replaced !== content) {
+                                                    content = replaced
                                                     modified = true
                                                 }
                                             }
 
                                             if (modified) {
+                                                console.log('[rename] Modified:', file)
                                                 await writeFile(file, content, 'utf-8')
                                             }
                                         } catch (e) {

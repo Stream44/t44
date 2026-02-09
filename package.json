@@ -1,6 +1,6 @@
 {
     "name": "t44",
-    "version": "0.2.0-rc.19",
+    "version": "0.2.0-rc.23",
     "license": "Apache-2.0",
     "repository": {
         "type": "git",
@@ -75,7 +75,7 @@
         "turbo": "^2.7.5",
         "@ucanto/principal": "^9.0.3",
         "@ucanto/server": "^11.0.3",
-        "@stream44.studio/encapsulate": "^0.2.0-rc.17"
+        "@stream44.studio/encapsulate": "^0.2.0-rc.21"
     },
     "devDependencies": {
         "@types/bun": "^1.3.4",

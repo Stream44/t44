@@ -23,7 +23,7 @@ export async function capsule({
             '#': {
                 GitHubApi: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/github.com/api.v0'
+                    value: './api.v0'
                 },
                 push: {
                     type: CapsulePropertyTypes.Function,
