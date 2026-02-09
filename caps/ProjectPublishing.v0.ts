@@ -143,13 +143,13 @@ export async function capsule({
                         await applyRenamesAndFinalize()
 
                         // Phase 3: Bump versions on original source directories
+                        const bumpedRepos = new Set<string>()
+
                         if (rc || release) {
                             if (rc) console.log('[t44] Release candidate mode enabled\n')
                             if (release) console.log('[t44] Release mode enabled\n')
 
                             console.log('[t44] Bumping versions ...\n')
-
-                            const bumpedRepos = new Set<string>()
 
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = centralSourceDirs.get(repoName)!
@@ -252,11 +252,16 @@ export async function capsule({
                             }
                         })
 
-                        // Phase 5: Tag git repos with version
+                        // Phase 5: Tag git repos with version (only bumped repos)
                         if (rc || release) {
                             const taggedRepos = new Set<string>()
                             await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
                                 if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing.v0' && !taggedRepos.has(repoName)) {
+                                    if (!bumpedRepos.has(repoName)) {
+                                        console.log(`  ○ Skipping tag for '${repoName}' (not bumped)\n`)
+                                        taggedRepos.add(repoName)
+                                        return
+                                    }
                                     const metadata = gitMetadata.get(repoName)
                                     if (!metadata?.projectProjectionDir) return
 
