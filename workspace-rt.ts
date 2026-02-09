@@ -9,7 +9,7 @@ import { access } from 'fs/promises'
 import chalk from 'chalk'
 import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory.v0"
 import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane.v0"
-import { TimingObserver } from "@stream44.studio/encapsulate/src/spine-factories/TimingObserver"
+import { TimingObserver } from "@stream44.studio/encapsulate/spine-factories/TimingObserver"
 
 async function findWorkspaceRoot(): Promise<string> {
     let currentDir = resolve(process.cwd())
