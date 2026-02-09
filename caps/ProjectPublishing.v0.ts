@@ -1,7 +1,7 @@
 
 import { join } from 'path'
 import { $ } from 'bun'
-import { mkdir, access } from 'fs/promises'
+import { mkdir, access, readFile, writeFile } from 'fs/promises'
 import { constants } from 'fs'
 
 export async function capsule({
@@ -139,25 +139,9 @@ export async function capsule({
                             })
                         }
 
-                        // Phase 2: Detect source changes before any modifications
+                        // Phase 2: Detect source changes and bump versions
                         const bumpedRepos = new Set<string>()
-                        const reposWithChanges = new Set<string>()
 
-                        if (rc || release) {
-                            for (const [repoName] of Object.entries(matchingRepositories)) {
-                                const repoSourceDir = centralSourceDirs.get(repoName)!
-                                await $`git add -A`.cwd(repoSourceDir).quiet()
-                                const diff = await $`git diff --cached --stat`.cwd(repoSourceDir).quiet().nothrow()
-                                const hasChanges = diff.text().trim().length > 0
-                                await $`git reset`.cwd(repoSourceDir).quiet().nothrow()
-                                if (hasChanges) reposWithChanges.add(repoName)
-                            }
-                        }
-
-                        // Phase 3: Apply renames and resolve workspace dependencies
-                        await applyRenamesAndFinalize()
-
-                        // Phase 4: Bump versions on original source directories
                         if (rc || release) {
                             if (rc) console.log('[t44] Release candidate mode enabled\n')
                             if (release) console.log('[t44] Release mode enabled\n')
@@ -165,38 +149,53 @@ export async function capsule({
                             console.log('[t44] Bumping versions ...\n')
 
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                                if (!reposWithChanges.has(repoName)) {
+                                const repoSourceDir = centralSourceDirs.get(repoName)!
+
+                                // Check if there are changes since last committed state
+                                await $`git add -A`.cwd(repoSourceDir).quiet()
+                                const diff = await $`git diff --cached --stat`.cwd(repoSourceDir).quiet().nothrow()
+                                const hasChanges = diff.text().trim().length > 0
+                                await $`git reset`.cwd(repoSourceDir).quiet().nothrow()
+
+                                if (!hasChanges) {
                                     console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
                                     continue
                                 }
 
                                 console.log(`=> Bumping version for '${repoName}' ...\n`)
 
-                                await this.SemverProvider.bump({
+                                const result = await this.SemverProvider.bump({
                                     config: repoConfig,
                                     options: { rc, release }
                                 })
 
-                                bumpedRepos.add(repoName)
+                                if (result?.newVersion) {
+                                    bumpedRepos.add(repoName)
 
-                                // Re-sync after bump to pick up version change in central repo
-                                await syncToCentral(repoName, repoConfig)
+                                    // Update version in central repo's package.json too
+                                    const centralPackageJsonPath = join(repoSourceDir, 'package.json')
+                                    const centralContent = await readFile(centralPackageJsonPath, 'utf-8')
+                                    const centralPackageJson = JSON.parse(centralContent)
+                                    centralPackageJson.version = result.newVersion
+                                    const indent = centralContent.match(/^\{\s*\n([ \t]+)/)
+                                    const indentSize = indent ? indent[1].length : 2
+                                    await writeFile(centralPackageJsonPath, JSON.stringify(centralPackageJson, null, indentSize) + '\n', 'utf-8')
+                                }
                             }
 
-                            // Re-apply renames and resolve workspace deps on all repos
-                            // (non-bumped repos need updated dependency versions too)
-                            if (bumpedRepos.size > 0) {
-                                await applyRenamesAndFinalize()
-                            }
+                            console.log('[t44] Version bump complete!\n')
+                        }
 
-                            // Commit the final state for all repos that have changes
+                        // Phase 3: Apply renames and resolve workspace dependencies
+                        await applyRenamesAndFinalize()
+
+                        // Phase 4: Commit the final state for all repos that have changes
+                        if (rc || release) {
                             for (const [repoName] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = centralSourceDirs.get(repoName)!
                                 await $`git add -A`.cwd(repoSourceDir).quiet()
                                 await $`git commit -m bump`.cwd(repoSourceDir).quiet().nothrow()
                             }
-
-                            console.log('[t44] Version bump complete!\n')
                         }
 
                         // Helper to iterate providers with custom callback

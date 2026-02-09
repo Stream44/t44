@@ -149,6 +149,8 @@ export async function capsule({
                         await writeFile(packageJsonPath, updatedContent, 'utf-8')
 
                         console.log(chalk.green(`  ✓ Updated ${packageJsonPath} to version ${newVersion}\n`))
+
+                        return { newVersion }
                     }
                 },
             }
