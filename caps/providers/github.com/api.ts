@@ -88,6 +88,21 @@ export async function capsule({
                         return branches
                     }
                 },
+                updateRepoVisibility: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { owner, repo, isPrivate }: { owner: string, repo: string, isPrivate: boolean }) {
+                        const headers = await this.apiHeaders
+                        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+                            method: 'PATCH',
+                            headers: { ...headers, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ private: isPrivate })
+                        })
+                        if (!response.ok) {
+                            throw new Error(`GitHub API error updating repo visibility: ${response.status} ${await response.text()}`)
+                        }
+                        return response.json()
+                    }
+                },
                 ensureRepo: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { owner, repo, isPrivate, description }: { owner: string, repo: string, isPrivate?: boolean, description?: string }) {
