@@ -1,0 +1,64 @@
+$schema: ../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSchemas/@t44.sh~t44~structs~WorkspaceConfigFile.json
+'#t44/structs/WorkspaceShellConfig':
+  env:
+    default: null
+    force:
+      F_WORKSPACE_DIR: resolve('${__dirname}/..')
+  shell:
+    commands:
+      '44':
+        description: Run workspace CLI commands.
+        cmd: |
+          "${F_WORKSPACE_IMPL_DIR}/bin/workspace" $@
+      help:
+        description: Display help for shell commands.
+        cmd: |
+          "${F_WORKSPACE_IMPL_DIR}/bin/shell" --help
+      a:
+        description: Re-activate workspace environment.
+        cmd: |
+          w_log "start" "Re-activating workspace"
+
+          source "$F_WORKSPACE_ACTIVATE_BIN_PATH"
+
+          w_log "success" "Workspace Activated OK!"
+      i:
+        description: Re-install workspace dependencies (removes node_modules and runs bun install).
+        cmd: |
+          w_log "start" "Re-installing workspace"
+
+          (
+              cd "${F_WORKSPACE_DIR}" && 
+              find . -name 'node_modules' -type d -prune -exec rm -rf {} + 2>/dev/null || true && 
+              bun install
+          )
+
+          w_log "success" "Workspace Re-installed OK!"
+      info:
+        description: Display workspace information.
+        cmd: |
+          (
+              cd "${F_WORKSPACE_DIR}" && 
+              "${F_WORKSPACE_IMPL_DIR}/bin/workspace" info ${@:2}
+          )
+      p:
+        description: Push project repositories.
+        cmd: |
+          w_log "start" "Push project repositories"
+
+          (
+              cd "${F_WORKSPACE_DIR}" && 
+              "${F_WORKSPACE_IMPL_DIR}/bin/workspace" push $@
+          )
+
+          w_log "success" "Project repositories pushed OK!"
+      h:
+        description: Navigate to workspace home directory.
+        cmd: |
+          cd "${F_WORKSPACE_DIR}"
+      dev:
+        cliCommand: dev
+      deploy:
+        cliCommand: deploy
+  createdAt: '2026-02-11T01:01:49.799Z'
+  updatedAt: '2026-02-11T01:01:49.799Z'

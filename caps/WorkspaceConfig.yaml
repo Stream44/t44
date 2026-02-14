@@ -1,0 +1,71 @@
+$schema: ../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSchemas/@t44.sh~t44~structs~WorkspaceConfigFile.json
+extends:
+  - ./WorkspaceShell.yaml
+'#t44/structs/WorkspaceCliConfig':
+  javascript:
+    api:
+      workspaceDir: resolve('${__dirname}/..')
+  cli:
+    commands:
+      init:
+        capsule: 't44/caps/WorkspaceInit'
+        description: Initialize a new Terminal 44 workspace.
+      activate:
+        capsule: 't44/caps/WorkspaceShell'
+        description: Generate environment variables for sourcing into shells.
+      info:
+        capsule: 't44/caps/WorkspaceInfo'
+        description: Display information about the workspace.
+        options:
+          full:
+            description: Show full details instead of compact view
+      query:
+        capsule: 't44/caps/WorkspaceModel'
+        description: Query the workspace model.
+        arguments:
+          entitySelector:
+            optional: true
+            description: Filter entities by path, name, or schema ID
+        options:
+          full:
+            description: Show full details instead of compact view
+      dev:
+        capsule: 't44/caps/ProjectDevelopment'
+        description: Run a project or package dev server.
+        arguments:
+          projectSelector:
+            optional: true
+            description: Name of a project or package to run the dev script for.
+      push:
+        capsule: 't44/caps/ProjectPublishing'
+        description: Publish local committed code to a remote service.
+        arguments:
+          projectSelector:
+            optional: true
+            description: Name of a top-level project directory in the workspace. If not specified, pushes all repositories.
+        options:
+          bump:
+            description: Bump package.json versions without tagging or publishing (dry-run mode)
+          rc:
+            description: Release candidate mode - bump versions, tag, and publish
+          release:
+            description: Remove release candidate suffix and publish release version
+          publish:
+            description: Publish without bumping versions or tagging - just push current state to providers. Optionally specify a provider filter (e.g. 'git' for git-only).
+            value: optional
+          dangerously-reset-main:
+            description: Reset the git repository and force push to remote.
+          yes-signoff:
+            description: Automatically agree to DCO sign-off without prompting.
+      deploy:
+        capsule: 't44/caps/ProjectDeployment'
+        description: Deploy a project to a provider.
+        arguments:
+          projectSelector:
+            optional: true
+            description: Name of a top-level project directory in the workspace. If not specified, deploys all projects.
+        options:
+          deprovision:
+            description: Delete the project from the provider instead of deploying it
+  createdAt: '2026-02-11T01:01:49.797Z'
+  updatedAt: '2026-02-11T01:01:49.797Z'

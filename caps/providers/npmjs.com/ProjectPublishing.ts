@@ -1,0 +1,536 @@
+
+import { join } from 'path'
+import { $ } from 'bun'
+import { mkdir, access, writeFile, readFile } from 'fs/promises'
+import { constants } from 'fs'
+import glob from 'fast-glob'
+import chalk from 'chalk'
+import { createHash } from 'crypto'
+
+function detectIndent(content: string): number {
+    const match = content.match(/^\{\s*\n([ \t]+)/)
+    if (match) {
+        return match[1].length
+    }
+    return 2
+}
+
+export async function capsule({
+    encapsulate,
+    CapsulePropertyTypes,
+    makeImportStack
+}: {
+    encapsulate: any
+    CapsulePropertyTypes: any
+    makeImportStack: any
+}) {
+    return encapsulate({
+        '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
+            '#@stream44.studio/encapsulate/structs/Capsule': {},
+            '#t44/structs/providers/npmjs.com/ProjectPublishingFact': {
+                as: '$NpmFact'
+            },
+            '#t44/structs/ProjectPublishingFact': {
+                as: '$StatusFact'
+            },
+            '#': {
+                WorkspacePrompt: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: 't44/caps/WorkspacePrompt'
+                },
+                ProjectCatalogs: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: 't44/caps/ProjectCatalogs'
+                },
+                prepare: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { projectionDir, config }: { projectionDir: string, config: any }) {
+
+                        const name = config.provider.config.PackageSettings.name
+                        const projectSourceDir = join(config.sourceDir)
+                        const stageDir = join(projectionDir, 'stage', name.replace(/[\/]/g, '~'))
+
+                        await mkdir(stageDir, { recursive: true })
+
+                        const gitignorePath = join(projectSourceDir, '.gitignore')
+                        const npmignorePath = join(projectSourceDir, '.npmignore')
+
+                        let gitignoreExists = false
+                        let npmignoreExists = false
+
+                        try {
+                            await access(gitignorePath, constants.F_OK)
+                            gitignoreExists = true
+                        } catch { }
+
+                        try {
+                            await access(npmignorePath, constants.F_OK)
+                            npmignoreExists = true
+                        } catch { }
+
+                        const rsyncArgs = ['rsync', '-a', '--delete', '--delete-excluded', '--exclude', '.git']
+                        if (gitignoreExists) rsyncArgs.push('--exclude-from=' + gitignorePath)
+                        if (npmignoreExists) rsyncArgs.push('--exclude-from=' + npmignorePath)
+                        rsyncArgs.push(projectSourceDir + '/', stageDir + '/')
+                        await $`${rsyncArgs}`
+
+                        const packageJsonPath = join(stageDir, 'package.json')
+                        const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
+                        const indent = detectIndent(packageJsonContent)
+                        const packageJson = JSON.parse(packageJsonContent)
+
+                        // Replace package name with public npm name
+                        packageJson.name = name
+
+                        const modifiedPackageJsonContent = JSON.stringify(packageJson, null, indent) + '\n'
+                        if (modifiedPackageJsonContent !== packageJsonContent) {
+                            await writeFile(packageJsonPath, modifiedPackageJsonContent, 'utf-8')
+                        }
+
+
+                        const localVersion = packageJson.version
+
+                        let publishedInfo: any = null
+                        let publishedFiles: Map<string, string> = new Map()
+                        let hasChanges = false
+
+                        try {
+                            const viewResult = await $`npm view ${name} --json`.cwd(stageDir).quiet()
+                            const result = viewResult.text()
+
+                            if (result && result.trim()) {
+                                publishedInfo = JSON.parse(result)
+
+                                if (publishedInfo && publishedInfo['dist-tags']) {
+                                    try {
+                                        // Determine which tag to compare against based on local version
+                                        const isReleaseCandidate = localVersion.includes('-rc.')
+                                        const compareTag = isReleaseCandidate ? 'next' : 'latest'
+                                        const distTags = publishedInfo['dist-tags']
+                                        const compareVersion = distTags[compareTag]
+
+                                        if (compareVersion) {
+                                            // Include version in directory name for proper caching
+                                            const mirrorDir = join(projectionDir, 'mirror', `${name.replace(/[\/]/g, '~')}@${compareVersion}`)
+                                            const publishedPackageDir = join(mirrorDir, 'package')
+
+                                            // Check if already downloaded
+                                            let alreadyDownloaded = false
+                                            try {
+                                                await access(publishedPackageDir, constants.F_OK)
+                                                alreadyDownloaded = true
+                                            } catch { }
+
+                                            if (!alreadyDownloaded) {
+                                                await mkdir(mirrorDir, { recursive: true })
+
+                                                await $`npm pack ${name}@${compareVersion}`.cwd(mirrorDir).quiet()
+
+                                                const tarballFiles = await glob('*.tgz', { cwd: mirrorDir, absolute: false })
+                                                if (tarballFiles.length > 0) {
+                                                    await $`tar -xzf ${tarballFiles[0]}`.cwd(mirrorDir).quiet()
+                                                    await $`rm ${tarballFiles[0]}`.cwd(mirrorDir).quiet()
+                                                }
+                                            }
+
+                                            // Read file hashes from extracted package
+                                            const publishedFilePaths = await glob('**/*', {
+                                                cwd: publishedPackageDir,
+                                                absolute: false,
+                                                onlyFiles: true
+                                            })
+
+                                            for (const filePath of publishedFilePaths) {
+                                                const fullPath = join(publishedPackageDir, filePath)
+                                                const fileBuffer = await readFile(fullPath)
+                                                const fileHash = createHash('sha1').update(fileBuffer).digest('hex')
+                                                publishedFiles.set(filePath, fileHash)
+                                            }
+                                        }
+                                    } catch (e) { }
+                                }
+                            }
+                        } catch (error: any) {
+                            hasChanges = true
+                        }
+
+                        const localPackResult = await $`npm pack`.cwd(stageDir).quiet()
+                        const localTarballName = localPackResult.text().trim().split('\n').pop()?.trim()
+                        const localTarballPath = join(stageDir, localTarballName || '')
+
+                        const localTarballBuffer = await readFile(localTarballPath)
+                        const localShasum = createHash('sha1').update(localTarballBuffer).digest('hex')
+                        const localIntegrity = 'sha512-' + createHash('sha512').update(localTarballBuffer).digest('base64')
+
+                        await $`rm ${localTarballPath}`.quiet()
+
+                        let versionExistsOnNpm = false
+                        let versionMatchesChecksum = false
+                        let localMatchesAnyTag = false
+
+                        if (publishedInfo) {
+                            // Check if local version exists in any tag
+                            const distTags = publishedInfo['dist-tags'] || {}
+                            for (const [tag, version] of Object.entries(distTags)) {
+                                if (version === localVersion) {
+                                    versionExistsOnNpm = true
+
+                                    // Fetch version-specific info to check shasum
+                                    try {
+                                        const versionResult = await $`npm view ${name}@${version as string} --json`.cwd(stageDir).quiet()
+                                        const versionInfo = JSON.parse(versionResult.text())
+                                        const publishedShasum = versionInfo.dist?.shasum || ''
+                                        const publishedIntegrity = versionInfo.dist?.integrity || ''
+
+                                        if (publishedShasum === localShasum || publishedIntegrity === localIntegrity) {
+                                            versionMatchesChecksum = true
+                                            localMatchesAnyTag = true
+                                        }
+                                    } catch (e) { }
+
+                                    break
+                                }
+                            }
+                        }
+
+                        if (!publishedInfo || !localMatchesAnyTag) {
+                            hasChanges = true
+                        }
+
+                        return {
+                            name,
+                            localVersion,
+                            projectSourceDir,
+                            stageDir,
+                            publishedInfo,
+                            localShasum,
+                            localIntegrity,
+                            versionExistsOnNpm,
+                            versionMatchesChecksum,
+                            localMatchesAnyTag,
+                            hasChanges,
+                            publishedFiles
+                        }
+                    }
+                },
+                push: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { projectionDir, config, metadata }: { projectionDir: string, config: any, metadata?: any }) {
+
+                        if (!metadata) {
+                            throw new Error('Push method requires metadata from prepare phase')
+                        }
+
+                        // Check if package.json has private: true
+                        const stagePackageJsonPath = join(metadata.stageDir, 'package.json')
+                        const stagePackageJson = JSON.parse(await readFile(stagePackageJsonPath, 'utf-8'))
+                        const publicSetting = config.provider.config.PackageSettings?.public
+
+                        if (stagePackageJson.private === true) {
+                            if (publicSetting === undefined) {
+                                const sourcePackageJsonPath = join(metadata.projectSourceDir, 'package.json')
+                                console.log(chalk.yellow(`\n⚠️  Skipping npm publish — private: true in ${sourcePackageJsonPath}\n`))
+                            } else {
+                                console.log(chalk.yellow(`\n⚠️  Skipping npm publish — package is private\n`))
+                            }
+                            return
+                        }
+
+                        const {
+                            name,
+                            localVersion,
+                            projectSourceDir,
+                            stageDir,
+                            publishedInfo,
+                            localShasum,
+                            localIntegrity,
+                            versionExistsOnNpm,
+                            versionMatchesChecksum,
+                            localMatchesAnyTag,
+                            hasChanges,
+                            publishedFiles
+                        } = metadata
+
+                        console.log(chalk.cyan(`\n📋 Package Details:`))
+                        console.log(chalk.gray(`   Package:     ${chalk.white(name)}`))
+                        console.log(chalk.gray(`   Version:     ${chalk.white(localVersion)}`))
+                        console.log(chalk.gray(`   Shasum:      ${chalk.white(localShasum)}`))
+                        console.log(chalk.gray(`   Source:      ${chalk.white(projectSourceDir)}`))
+                        console.log(chalk.gray(`   Build:       ${chalk.white(stageDir)}`))
+
+                        if (publishedInfo) {
+                            const npmUrl = `https://www.npmjs.com/package/${name}`
+                            const distTags = publishedInfo['dist-tags'] || {}
+
+                            console.log(chalk.cyan(`\n📦 Published package: ${chalk.underline(npmUrl)}`))
+
+                            // Fetch and display info for each tag
+                            const tagInfos: Array<{ tag: string, version: string, shasum: string, matches: boolean }> = []
+                            let anyTagMatches = false
+
+                            for (const [tag, version] of Object.entries(distTags)) {
+                                try {
+                                    const tagVersionResult = await $`npm view ${name}@${version as string} --json`.cwd(stageDir).quiet()
+                                    const tagVersionInfo = JSON.parse(tagVersionResult.text())
+
+                                    const publishedShasum = tagVersionInfo.dist?.shasum || ''
+                                    const publishedIntegrity = tagVersionInfo.dist?.integrity || ''
+                                    const matches = publishedShasum === localShasum || publishedIntegrity === localIntegrity
+
+                                    if (matches) anyTagMatches = true
+
+                                    tagInfos.push({ tag, version: version as string, shasum: publishedShasum, matches })
+                                } catch (e) {
+                                    tagInfos.push({ tag, version: version as string, shasum: '', matches: false })
+                                }
+                            }
+
+                            console.log(chalk.gray(`   Versions:`))
+                            for (const { tag, version, shasum } of tagInfos) {
+                                console.log(chalk.white(`      ${tag.padEnd(10)} v${version}`))
+                                console.log(chalk.gray(`         ${shasum}`))
+                            }
+                            console.log('')
+
+                            // Store for later use
+                            metadata.anyTagMatches = anyTagMatches
+                        }
+
+                        // Get anyTagMatches from the earlier section
+                        const anyTagMatches = metadata.anyTagMatches || localMatchesAnyTag
+
+                        if (anyTagMatches) {
+                            console.log(chalk.green(`\n✓ Local package matches published version - no publish needed\n`))
+                            return
+                        } else if (versionExistsOnNpm && versionMatchesChecksum) {
+                            console.log(chalk.green(`\n✓ Version ${localVersion} already published with matching content\n`))
+                            return
+                        } else if (versionExistsOnNpm && !versionMatchesChecksum) {
+                            console.log(chalk.red(`\n✗ ERROR: Version ${localVersion} already exists on npm with different content!`))
+                            console.log(chalk.magenta(`  Run with --rc flag to bump the version and publish these changes`))
+                            return
+                        }
+
+                        // Show file list only when publishing
+                        const localFilePaths = await glob('**/*', {
+                            cwd: stageDir,
+                            absolute: false,
+                            onlyFiles: true
+                        })
+
+                        const localFileHashes = new Map<string, string>()
+                        for (const filePath of localFilePaths) {
+                            const fullPath = join(stageDir, filePath)
+                            const fileBuffer = await readFile(fullPath)
+                            const localHash = createHash('sha1').update(fileBuffer).digest('hex')
+                            localFileHashes.set(filePath, localHash)
+                        }
+
+                        console.log(chalk.cyan(`\n📄 Files to be published:`))
+                        if (publishedInfo && publishedFiles.size > 0) {
+                            console.log(chalk.gray(`   Legend: ${chalk.green('● new')} ${chalk.yellow('● modified')} ${chalk.gray('● unchanged')}\n`))
+                        } else {
+                            console.log(chalk.gray(`   Legend: ${chalk.green('● new')}\n`))
+                        }
+
+                        for (const filePath of localFilePaths) {
+                            const localHash = localFileHashes.get(filePath)
+                            const publishedHash = publishedFiles.get(filePath)
+
+                            const stats = await readFile(join(stageDir, filePath))
+                            const sizeKB = (stats.length / 1024).toFixed(1) + 'kB'
+                            const sizeB = stats.length + 'B'
+                            const displaySize = stats.length >= 1024 ? sizeKB : sizeB
+
+                            let status = ''
+                            let color = chalk.gray
+
+                            if (!publishedHash) {
+                                status = chalk.green('● ')
+                                color = chalk.green
+                            } else if (publishedHash !== localHash) {
+                                status = chalk.yellow('● ')
+                                color = chalk.yellow
+                            } else {
+                                status = chalk.gray('● ')
+                                color = chalk.gray
+                            }
+
+                            console.log(`   ${status}${color(displaySize.padEnd(8))} ${color(filePath)}`)
+                        }
+
+                        if (publishedInfo && publishedFiles.size > 0) {
+                            const deletedFiles = Array.from(publishedFiles.keys()).filter(f => !localFilePaths.includes(f as any))
+                            if (deletedFiles.length > 0) {
+                                console.log(chalk.red(`\n   Removed files from previous version:`))
+                                for (const fileName of deletedFiles) {
+                                    console.log(chalk.red(`   ✗ ${fileName}`))
+                                }
+                            }
+                        }
+                        console.log('\n')
+
+                        // Display package.json diff comparing our code to published package for same tag
+                        if (publishedInfo && publishedFiles.size > 0) {
+                            // Determine which tag to compare against based on local version
+                            const isReleaseCandidate = localVersion.includes('-rc.')
+                            const compareTag = isReleaseCandidate ? 'next' : 'latest'
+                            const distTags = publishedInfo['dist-tags'] || {}
+                            const compareVersion = distTags[compareTag]
+
+                            if (compareVersion) {
+                                const mirrorDir = join(projectionDir, 'mirror', `${name.replace(/[\/]/g, '~')}@${compareVersion}`)
+                                const publishedPackageDir = join(mirrorDir, 'package')
+                                const publishedPackageJsonPath = join(publishedPackageDir, 'package.json')
+
+                                // Check if published package.json exists
+                                try {
+                                    await access(publishedPackageJsonPath, constants.F_OK)
+
+                                    // Read both package.json files
+                                    const publishedPackageJsonContent = await readFile(publishedPackageJsonPath, 'utf-8')
+                                    const localPackageJsonPath = join(projectSourceDir, 'package.json')
+                                    const localPackageJsonContent = await readFile(localPackageJsonPath, 'utf-8')
+
+                                    // Only show diff if they differ
+                                    if (publishedPackageJsonContent.trim() !== localPackageJsonContent.trim()) {
+                                        console.log(chalk.cyan(`\n📝 package.json changes (comparing to ${compareTag}@${compareVersion}):`))
+                                        console.log(chalk.gray('─'.repeat(80)))
+
+                                        try {
+                                            const diffResult = await $`diff -u ${publishedPackageJsonPath} ${localPackageJsonPath}`.quiet().nothrow()
+                                            const diffLines = diffResult.text().split('\n')
+
+                                            for (const line of diffLines) {
+                                                if (line.startsWith('---') || line.startsWith('+++')) {
+                                                    console.log(chalk.gray(line))
+                                                } else if (line.startsWith('@@')) {
+                                                    console.log(chalk.cyan(line))
+                                                } else if (line.startsWith('+')) {
+                                                    console.log(chalk.green(line))
+                                                } else if (line.startsWith('-')) {
+                                                    console.log(chalk.red(line))
+                                                } else {
+                                                    console.log(chalk.gray(line))
+                                                }
+                                            }
+                                        } catch (e) {
+                                            // diff command failed
+                                        }
+
+                                        console.log(chalk.gray('─'.repeat(80)))
+                                        console.log('')
+                                    }
+                                } catch (e) {
+                                    // Published package.json doesn't exist or can't be read
+                                }
+                            }
+                        }
+
+                        // Determine npm tag based on version
+                        const isReleaseCandidate = localVersion.includes('-rc.')
+                        const npmTag = isReleaseCandidate ? 'next' : 'latest'
+
+                        if (publishedInfo && !versionExistsOnNpm) {
+                            console.log(chalk.yellow(`\n⚠️  Ready to publish new package ${name} version ${localVersion} to npmjs.com`))
+                            console.log(chalk.yellow(`   Will be tagged as: ${chalk.bold(npmTag)}\n`))
+                        } else {
+                            console.log(chalk.yellow(`\n⚠️  Ready to publish new package ${name} version ${localVersion} to npmjs.com (first publish)`))
+                            console.log(chalk.yellow(`   Will be tagged as: ${chalk.bold(npmTag)}\n`))
+                        }
+
+                        // Check if logged in to npm
+                        try {
+                            await $`npm whoami`.quiet()
+                        } catch {
+                            console.log(chalk.yellow(`\n⚠️  You must login to npmjs.com to proceed.\n`))
+                            const loginProc = Bun.spawn(['npm', 'login'], {
+                                stdin: 'inherit',
+                                stdout: 'inherit',
+                                stderr: 'inherit'
+                            })
+                            await loginProc.exited
+                        }
+
+                        try {
+                            const otp = await this.WorkspacePrompt.input({
+                                message: 'Enter your npmjs.com OTP (one-time password):',
+                                defaultValue: '',
+                                validate: (input: string) => {
+                                    if (!input || input.trim().length === 0) {
+                                        return 'OTP is required'
+                                    }
+                                    return true
+                                }
+                            })
+
+                            console.log(chalk.cyan(`\n🚀 Publishing '${name}' version ${localVersion} to npm with tag '${npmTag}'...`))
+                            await $`npm publish --access public --tag ${npmTag} --otp=${otp}`.cwd(stageDir)
+                            console.log(chalk.green(`✅ Successfully published '${name}' version ${localVersion} to npm (tag: ${npmTag})\n`))
+
+                            // Write fact files after successful publish
+                            const npmFactName = name.replace(/[\/]/g, '~')
+
+                            await this.$NpmFact.set(npmFactName, {
+                                name,
+                                version: localVersion,
+                                private: false,
+                                shasum: localShasum,
+                                integrity: localIntegrity,
+                                publishedAt: new Date().toISOString(),
+                                npmUrl: `https://www.npmjs.com/package/${name}`
+                            })
+
+                            await this.$StatusFact.set(npmFactName, {
+                                projectName: name,
+                                provider: 'npmjs.com',
+                                status: 'PUBLISHED',
+                                publicUrl: `https://www.npmjs.com/package/${name}`
+                            })
+                        } catch (error: any) {
+                            if (error.message?.includes('force closed') || error.message?.includes('SIGINT')) {
+                                console.log(chalk.red(`\nABORTED\n`))
+                                process.exit(1)
+                            }
+                            throw error
+                        }
+                    }
+                },
+                afterPush: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { repoName, metadata }: {
+                        repoName: string
+                        metadata?: any
+                    }): Promise<void> {
+                        if (!metadata) return
+
+                        const isReleaseCandidate = metadata.localVersion?.includes('-rc.')
+                        const npmTag = isReleaseCandidate ? 'next' : 'latest'
+
+                        const npmData: Record<string, any> = {
+                            distTags: {
+                                [npmTag]: {
+                                    version: metadata.localVersion,
+                                    shasum: metadata.localShasum,
+                                    integrity: metadata.localIntegrity,
+                                }
+                            }
+                        }
+
+                        await this.ProjectCatalogs.updateCatalogRepository({
+                            repoName,
+                            providerKey: '#' + capsule['#'],
+                            providerData: npmData,
+                        })
+                    }
+                },
+            }
+        }
+    }, {
+        // @ts-ignore - import.meta is supported in Bun
+        importMeta: import.meta,
+        importStack: makeImportStack(),
+        capsuleName: capsule['#'],
+    })
+}
+capsule['#'] = 't44/caps/providers/npmjs.com/ProjectPublishing'
