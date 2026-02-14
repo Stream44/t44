@@ -106,7 +106,7 @@ describe('t44 lifecycle', function () {
         await writeFile(join(repoDir, '.workspace', 'workspace.yaml'), workspaceYaml)
     })
 
-    it('init — t44 info --yes initializes workspace', async () => {
+    it('init --yes initializes workspace', async () => {
         const { exitCode, stdout, stderr } = await runT44('info')
 
         if (exitCode !== 0) {
@@ -128,6 +128,61 @@ describe('t44 lifecycle', function () {
 
         const signingKeyStat = await stat(join(sshDir, 'id_t44_signing_ed25519'))
         expect(signingKeyStat.isFile()).toBe(true)
+    }, 15_000)
+
+    it('activate — bin/activate.ts outputs shell exports', async () => {
+        const activateBin = join(import.meta.dir, '../../bin/activate.ts')
+        const proc = Bun.spawn([activateBin, '--yes'], {
+            env,
+            cwd: repoDir,
+            stdout: 'pipe',
+            stderr: 'pipe',
+            stdin: 'pipe',
+        })
+        proc.stdin.end()
+
+        const timeout = setTimeout(() => proc.kill(), 15_000)
+
+        const stdoutChunks: string[] = []
+        const stderrChunks: string[] = []
+
+        const verbose = !!process.env.VERBOSE
+
+        const stdoutReader = new WritableStream({
+            write(chunk) {
+                const text = new TextDecoder().decode(chunk)
+                stdoutChunks.push(text)
+                if (verbose) process.stdout.write(text)
+            }
+        })
+
+        const stderrReader = new WritableStream({
+            write(chunk) {
+                const text = new TextDecoder().decode(chunk)
+                stderrChunks.push(text)
+                if (verbose) process.stderr.write(text)
+            }
+        })
+
+        const [exitCode] = await Promise.all([
+            proc.exited,
+            proc.stdout.pipeTo(stdoutReader),
+            proc.stderr.pipeTo(stderrReader),
+        ])
+
+        clearTimeout(timeout)
+
+        const stdout = stdoutChunks.join('')
+        const stderr = stderrChunks.join('')
+
+        if (exitCode !== 0) {
+            console.log('STDOUT:', stdout)
+            console.log('STDERR:', stderr)
+        }
+
+        expect(exitCode).toBe(0)
+        expect(stdout.length).toBeGreaterThan(0)
+        expect(stdout).toContain('export ')
     }, 15_000)
 
     it('info — displays workspace information', async () => {

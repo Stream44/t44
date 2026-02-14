@@ -33,4 +33,4 @@ export F_WORKSPACE_ACTIVATE_BIN_PATH="$_dir/activate"
 export F_WORKSPACE_IMPL_DIR="$(dirname $_dir)"
 
 # Execute activate.ts from the same directory as this script
-eval "$($_dir/activate.ts)"
+"$_dir/activate.ts"
