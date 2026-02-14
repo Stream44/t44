@@ -51,10 +51,11 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any): Promise<string> {
                         const { stat, mkdir } = await import('fs/promises')
+                        const { join } = await import('path')
                         const chalk = (await import('chalk')).default
 
                         const config = await this.$HomeRegistryConfig.config
-                        const defaultDir = await this.Home.registryDir
+                        const defaultHomeDir = await this.Home.homeDir
 
                         let chosenDir: string
 
@@ -73,15 +74,15 @@ export async function capsule({
                             }
                             chosenDir = config.rootDir
                         } else {
-                            // rootDir not set — prompt user
-                            console.log(chalk.cyan(`\n🏠 Home Registry Setup\n`))
-                            console.log(chalk.gray('   The home registry is the place in your home directory that keeps'))
-                            console.log(chalk.gray('   details about your workspaces and projects.'))
+                            // rootDir not set — prompt user for home directory
+                            console.log(chalk.cyan(`\n🏠 Home Directory Setup\n`))
+                            console.log(chalk.gray('   The home directory is where your workspace keeps its registry,'))
+                            console.log(chalk.gray('   SSH keys, and other workspace-related files.'))
                             console.log('')
 
-                            chosenDir = await this.WorkspacePrompt.input({
-                                message: 'Enter the home registry directory:',
-                                defaultValue: defaultDir,
+                            const chosenHomeDir = await this.WorkspacePrompt.input({
+                                message: 'Enter the home directory:',
+                                defaultValue: defaultHomeDir,
                                 validate: (input: string) => {
                                     if (!input || input.trim().length === 0) {
                                         return 'Directory path cannot be empty'
@@ -90,18 +91,18 @@ export async function capsule({
                                 }
                             })
 
-                            // Check if directory exists
-                            let dirExists = false
+                            // Check if home directory exists
+                            let homeDirExists = false
                             try {
-                                const s = await stat(chosenDir)
-                                dirExists = s.isDirectory()
+                                const s = await stat(chosenHomeDir)
+                                homeDirExists = s.isDirectory()
                             } catch {
                                 // Does not exist
                             }
 
-                            if (dirExists) {
+                            if (homeDirExists) {
                                 const confirmed = await this.WorkspacePrompt.confirm({
-                                    message: `Directory '${chosenDir}' already exists. Use this existing registry as the home registry for your workspace?`,
+                                    message: `Directory '${chosenHomeDir}' already exists. Use it as the home directory for your workspace?`,
                                     defaultValue: true
                                 })
 
@@ -110,11 +111,16 @@ export async function capsule({
                                     process.exit(0)
                                 }
                             } else {
-                                // Create the directory
-                                await mkdir(chosenDir, { recursive: true })
-                                console.log(chalk.green(`\n   ✓ Created home registry directory: ${chosenDir}\n`))
+                                // Create the home directory
+                                await mkdir(chosenHomeDir, { recursive: true })
+                                console.log(chalk.green(`\n   ✓ Created home directory: ${chosenHomeDir}\n`))
                             }
 
+                            // Derive registry dir from home dir
+                            chosenDir = join(chosenHomeDir, '.o/workspace.foundation')
+                            await mkdir(chosenDir, { recursive: true })
+
+                            await this.$HomeRegistryConfig.setConfigValue(['homeDir'], chosenHomeDir)
                             await this.$HomeRegistryConfig.setConfigValue(['rootDir'], chosenDir)
                         }
 

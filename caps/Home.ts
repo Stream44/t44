@@ -14,11 +14,17 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
+            '#t44/structs/HomeRegistryConfig': {
+                as: '$HomeRegistryConfig'
+            },
             '#': {
                 homeDir: {
                     type: CapsulePropertyTypes.GetterFunction,
                     value: async function (this: any): Promise<string> {
-                        return process.env.T44_HOME_DIR || homedir()
+                        if (process.env.T44_HOME_DIR) return process.env.T44_HOME_DIR
+                        const config = await this.$HomeRegistryConfig.config
+                        if (config?.homeDir) return config.homeDir
+                        return homedir()
                     }
                 },
                 sshDir: {

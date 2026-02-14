@@ -65,7 +65,7 @@ export async function capsule({
                         console.log(chalk.gray(`   Root: ${workspaceConfig?.rootDir || 'unknown'}`))
                         console.log(chalk.gray(''))
                         console.log(chalk.gray('   The signing key is an Ed25519 SSH key used for code and artifact signing.'))
-                        console.log(chalk.gray('   You can select an existing key from ~/.ssh or create a new one.'))
+                        console.log(chalk.gray(`   You can select an existing key from ${sshDir} or create a new one.`))
                         console.log(chalk.gray(''))
 
                         // Discover existing Ed25519 keys in ~/.ssh

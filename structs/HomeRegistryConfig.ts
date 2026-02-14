@@ -13,6 +13,10 @@ export async function capsule({
                         schema: {
                             type: 'object',
                             properties: {
+                                homeDir: {
+                                    type: 'string',
+                                    description: 'Absolute path to the home directory (parent of registry, .ssh, etc).'
+                                },
                                 rootDir: {
                                     type: 'string',
                                     description: 'Absolute path to the home registry root directory.'
