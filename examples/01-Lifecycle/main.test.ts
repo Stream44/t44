@@ -32,7 +32,7 @@ const {
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: 't44/tests/01-Lifecycle/main.test'
+        capsuleName: 't44/examples/01-Lifecycle/main.test'
     })
     return { spine }
 }, async ({ spine, apis }: any) => {
