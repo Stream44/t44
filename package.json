@@ -12,6 +12,7 @@
     },
     "exports": {
         "./workspace-rt": "./workspace-rt.ts",
+        "./standalone-rt": "./standalone-rt.ts",
         "./caps/Home": "./caps/Home.ts",
         "./caps/HomeRegistry": "./caps/HomeRegistry.ts",
         "./caps/OpenApiSchema": "./caps/OpenApiSchema.ts",
