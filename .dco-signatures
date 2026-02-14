@@ -1,0 +1,9 @@
+# DCO Signatures
+
+This file contains a permanent record of all Developer Certificate of Origin (DCO) agreements.
+Each contributor who has agreed to the DCO.md is listed below with their signing date.
+Format: name <email> | signed: <date> | agreement: <commit> (<agreement_change_date>) [| signature: <key_fingerprint>]
+
+---
+
+Christoph <christoph@christoph.diy> | signed: 2026-02-14 02:06:34 UTC | agreement: e32ecdd8a1e976c21097fcd141f568ff0bd6e817 (2026-02-13 21:06:34 -0500) | signature: SHA256:PJKqkaWh/+N7Zkmr59Zvgi92ByLmULIUMbubiUiY8X4
