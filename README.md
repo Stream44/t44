@@ -5,9 +5,7 @@
 ⚠️ **Disclaimer:** Under active development. Code has not been audited, APIs and interfaces are subject to change.
 
 <p align="center">
-  <a href="https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml?query=branch%3Amain"><img src="https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml/badge.svg" alt="Validate Gordian Open Integrity" /></a>
-
-  <a href="https://github.com/Stream44/t44/actions/workflows/dco.yml?query=branch%3Amain"><img src="https://github.com/Stream44/t44/actions/workflows/dco.yml/badge.svg" alt="Validate DCO Signatures" /></a>
+  <a href="https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml?query=branch%3Amain"><img src="https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml/badge.svg" alt="Validate Gordian Open Integrity" /></a> <a href="https://github.com/Stream44/t44/actions/workflows/dco.yml?query=branch%3Amain"><img src="https://github.com/Stream44/t44/actions/workflows/dco.yml/badge.svg" alt="Validate DCO Signatures" /></a>
 </p>
 
 Terminal44 Workspace Foundation
