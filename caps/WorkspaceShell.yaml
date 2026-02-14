@@ -9,7 +9,7 @@ $schema: ../../../../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSche
       '44':
         description: Run workspace CLI commands.
         cmd: |
-          "${F_WORKSPACE_IMPL_DIR}/bin/workspace" $@
+          "${F_WORKSPACE_IMPL_DIR}/bin/t44" $@
       help:
         description: Display help for shell commands.
         cmd: |
@@ -39,7 +39,7 @@ $schema: ../../../../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSche
         cmd: |
           (
               cd "${F_WORKSPACE_DIR}" && 
-              "${F_WORKSPACE_IMPL_DIR}/bin/workspace" info ${@:2}
+              "${F_WORKSPACE_IMPL_DIR}/bin/t44" info ${@:2}
           )
       p:
         description: Push project repositories.
@@ -48,7 +48,7 @@ $schema: ../../../../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSche
 
           (
               cd "${F_WORKSPACE_DIR}" && 
-              "${F_WORKSPACE_IMPL_DIR}/bin/workspace" push $@
+              "${F_WORKSPACE_IMPL_DIR}/bin/t44" push $@
           )
 
           w_log "success" "Project repositories pushed OK!"
