@@ -4,8 +4,6 @@
 
 ⚠️ **Disclaimer:** Under active development. Code has not been audited, APIs and interfaces are subject to change.
 
-[![Validate Gordian Open Integrity](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml?query=branch%3Amain) [![Validate DCO Signatures](https://github.com/Stream44/t44/actions/workflows/dco.yml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/dco.yml?query=branch%3Amain)
-
 Terminal44 Workspace Foundation
 ===
 
@@ -169,6 +167,8 @@ sandboxes only able to leverage capabilities specifically given.
 
 Provenance
 ===
+
+[![Gordian Open Integrity](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml?query=branch%3Amain) [![DCO Signatures](https://github.com/Stream44/t44/actions/workflows/dco.yml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/dco.yml?query=branch%3Amain)
 
 Repository DID: `did:repo:7d0bdb82f70c6b3dfade356f9e667cdd0cf0cc88`
 
