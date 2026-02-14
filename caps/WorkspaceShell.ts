@@ -41,7 +41,7 @@ export async function capsule({
                         process.stdout.write('\n')
 
                         // Load the shell script template
-                        const shellScriptModule = import.meta.resolve('t44/caps/WorkspaceShell.sh')
+                        const shellScriptModule = import.meta.resolve('./WorkspaceShell.sh')
                         const shellScriptPath = shellScriptModule.replace('file://', '')
                         let shellScript = await readFile(shellScriptPath, 'utf-8')
 
