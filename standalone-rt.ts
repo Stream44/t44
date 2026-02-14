@@ -4,10 +4,25 @@
 
 const startTime = Date.now()
 
+import { resolve, join } from 'path'
+import { access } from 'fs/promises'
 import chalk from 'chalk'
 import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory.v0"
 import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane.v0"
 import { TimingObserver } from "@stream44.studio/encapsulate/spine-factories/TimingObserver"
+
+async function findPackageRoot(startDir: string): Promise<string> {
+    let dir = resolve(startDir)
+    while (true) {
+        try {
+            await access(join(dir, 'package.json'))
+            return dir
+        } catch { }
+        const parent = resolve(dir, '..')
+        if (parent === dir) return resolve(startDir)
+        dir = parent
+    }
+}
 
 export async function run(encapsulateHandler: any, runHandler: any, options?: { importMeta?: { dir: string } }) {
 
@@ -17,8 +32,12 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
     const eventsByKey = new Map<string, any>()
 
+    const spineFilesystemRoot = options?.importMeta?.dir
+        ? await findPackageRoot(options.importMeta.dir)
+        : process.cwd()
+
     const { encapsulate, freeze, CapsulePropertyTypes, makeImportStack, hoistSnapshot } = await CapsuleSpineFactory({
-        spineFilesystemRoot: process.cwd(),
+        spineFilesystemRoot,
         capsuleModuleProjectionRoot: (import.meta as any).dir,
         enableCallerStackInference: true,
         spineContracts: {
