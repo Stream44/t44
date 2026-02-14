@@ -86,7 +86,7 @@
         "@ucanto/server": "^11.0.3",
         "json-schema-ref-resolver": "^3.0.0",
         "@stream44.studio/encapsulate": "^0.4.0-rc.8",
-        "@stream44.studio/dco": "^0.3.0-rc.7",
+        "@stream44.studio/dco": "^0.3.0-rc.8",
         "@stream44.studio/t44-blockchaincommons.com": "^0.1.0-rc.9"
     },
     "devDependencies": {
