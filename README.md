@@ -168,7 +168,7 @@ sandboxes only able to leverage capabilities specifically given.
 Provenance
 ===
 
-[![Gordian Open Integrity](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yml?query=branch%3Amain) [![DCO Signatures](https://github.com/Stream44/t44/actions/workflows/dco.yml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/dco.yml?query=branch%3Amain)
+[![Gordian Open Integrity](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yaml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/gordian-open-integrity.yaml?query=branch%3Amain) [![DCO Signatures](https://github.com/Stream44/t44/actions/workflows/dco.yaml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/dco.yaml?query=branch%3Amain)
 
 Repository DID: `did:repo:7d0bdb82f70c6b3dfade356f9e667cdd0cf0cc88`
 
