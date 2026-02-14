@@ -272,6 +272,10 @@ export async function generateEd25519Key(
     comment: string
 ): Promise<{ publicKey: string; keyFingerprint: string } | null> {
     const chalk = (await import('chalk')).default
+    const { mkdir } = await import('fs/promises')
+    const { dirname } = await import('path')
+
+    await mkdir(dirname(privateKeyPath), { recursive: true })
 
     try {
         execSync(

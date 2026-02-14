@@ -1,4 +1,4 @@
-$schema: ../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSchemas/@t44.sh~t44~structs~WorkspaceConfigFile.json
+$schema: ../../../../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSchemas/@t44.sh~t44~structs~WorkspaceConfigFile.json
 extends:
   - ./WorkspaceShell.yaml
 '#t44/structs/WorkspaceCliConfig':

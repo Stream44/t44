@@ -2,7 +2,6 @@
 import * as yaml from 'js-yaml'
 import { readFile, writeFile, access } from 'fs/promises';
 import { join, resolve, relative, dirname } from 'path'
-import { createRequire } from 'module'
 import chalk from 'chalk'
 
 export async function capsule({
@@ -220,7 +219,7 @@ export async function capsule({
 }
 capsule['#'] = 't44/caps/WorkspaceConfigFile'
 
-function resolveExtendPath(extendPath: string, configDir: string, workspaceRequire: NodeRequire): string {
+function resolveExtendPath(extendPath: string, configDir: string): string {
     if (extendPath.startsWith('.')) {
         return resolve(configDir, extendPath)
     } else {
@@ -243,9 +242,21 @@ function resolveExtendPath(extendPath: string, configDir: string, workspaceRequi
             filePath = parts.slice(1).join('/')
         }
 
-        // Resolve the package's package.json to get its directory
-        const packageJsonPath = workspaceRequire.resolve(`${packageName}/package.json`)
-        const packageDir = join(packageJsonPath, '..')
+        // Walk up from configDir looking for node_modules/<packageName>
+        const { existsSync } = require('fs')
+        let searchDir = configDir
+        let packageDir = ''
+        while (searchDir !== dirname(searchDir)) {
+            const candidate = join(searchDir, 'node_modules', packageName)
+            if (existsSync(join(candidate, 'package.json'))) {
+                packageDir = candidate
+                break
+            }
+            searchDir = dirname(searchDir)
+        }
+        if (!packageDir) {
+            throw new Error(`Cannot resolve package '${packageName}' from '${configDir}'. Ensure it is installed in node_modules.`)
+        }
 
         // Resolve the file path within the package
         return resolve(packageDir, filePath)
@@ -256,9 +267,6 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
     const loadedConfigs: { path: string, config: any, rawContent: string }[] = []
     const mainConfigDir = join(resolve(configPath), '..')
     let configTree: any = null
-
-    // Create a require function relative to workspace root for module resolution
-    const workspaceRequire = createRequire(join(workspaceRootDir, 'package.json'))
 
     async function loadConfigRecursive(currentPath: string, referencedFrom?: string, chain: string[] = []): Promise<any> {
         const absolutePath = resolve(currentPath)
@@ -484,7 +492,7 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
         if (config.extends && Array.isArray(config.extends)) {
             for (const extendPath of config.extends) {
                 // Always use configDir for resolution - it's the directory of the file containing the extends
-                const resolvedExtendPath = resolveExtendPath(extendPath, configDir, workspaceRequire)
+                const resolvedExtendPath = resolveExtendPath(extendPath, configDir)
                 const childNode = await loadConfigRecursive(resolvedExtendPath, absolutePath, currentChain)
                 // Store the original extends value for display
                 childNode.extendsValue = extendPath

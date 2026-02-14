@@ -93,7 +93,7 @@ export async function capsule({
                         const config = await this.WorkspaceConfig.config as any
 
                         const api: Record<string, any> = {}
-                        for (const propertyName in config.javascript.api) {
+                        for (const propertyName in config?.javascript?.api) {
                             api[propertyName] = config.javascript.api[propertyName]
                         }
                         return api
@@ -107,7 +107,7 @@ export async function capsule({
                         const self = this
 
                         const commands: Record<string, (commandArgs?: any) => Promise<void>> = {}
-                        for (const commandName in cliConfig.cli.commands) {
+                        for (const commandName in cliConfig?.cli?.commands) {
                             const commandConfig = cliConfig.cli.commands[commandName]
 
                             commands[commandName] = async function (commandArgs?: any) {
@@ -355,7 +355,7 @@ export async function capsule({
                         const cliConfig = await this.$config.config
                         const cliCommands = await this.cliCommands as Record<string, (args?: any) => Promise<void>>
 
-                        for (const commandName in cliConfig.cli.commands) {
+                        for (const commandName in cliConfig?.cli?.commands) {
                             const commandConfig = cliConfig.cli.commands[commandName]
                             const { description, arguments: commandArgs } = commandConfig
 
