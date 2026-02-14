@@ -111,6 +111,12 @@ export async function capsule({
                                             result[key] = JSON.parse(decrypted)
                                         } catch (decryptErr: any) {
                                             const chalk = (await import('chalk')).default
+                                            let currentKeyId = 'unknown'
+                                            try {
+                                                const keyConfig = await this.WorkspaceKey.ensureKey()
+                                                const did = await this.WorkspaceKey.getDid()
+                                                currentKeyId = `${keyConfig.keyName}-${did}`
+                                            } catch { }
                                             console.error(chalk.red(`\n┌─────────────────────────────────────────────────────────────────┐`))
                                             console.error(chalk.red(`│  ✗  Connection Credential Decryption Failed                     │`))
                                             console.error(chalk.red(`├─────────────────────────────────────────────────────────────────┤`))
@@ -119,6 +125,7 @@ export async function capsule({
                                             console.error(chalk.red(`│                                                                 │`))
                                             console.error(chalk.red(`│  This credential was encrypted with a different workspace key.  │`))
                                             console.error(chalk.red(`│  Encrypted with: ${keyIdentifier}`))
+                                            console.error(chalk.red(`│  Current key:    ${currentKeyId}`))
                                             console.error(chalk.red(`│                                                                 │`))
                                             console.error(chalk.red(`├─────────────────────────────────────────────────────────────────┤`))
                                             console.error(chalk.red(`│  To fix, delete the connection config and re-enter credentials: │`))
