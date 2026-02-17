@@ -24,6 +24,8 @@ jobs:
 
       - name: Initialize workspace
         run: ./bin/t44 init --yes
+        env:
+          T44_KEYS_PASSPHRASE: t44-ci-test
 
       - name: Run tests
         run: bun test --bail

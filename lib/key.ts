@@ -184,8 +184,14 @@ export async function ensureKeyInAgent(privateKeyPath: string, keyName: string, 
 
 /**
  * Prompt for a passphrase using inquirer (password input with confirmation).
+ * Returns null in non-TTY mode (CI environments).
  */
 export async function promptPassphrase(): Promise<string | null> {
+    // Skip prompting in non-TTY mode (CI, scripts, etc.)
+    if (!process.stdin.isTTY || process.env.CI) {
+        return null
+    }
+
     const inquirer = await import('inquirer')
     const chalk = (await import('chalk')).default
 
