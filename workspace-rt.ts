@@ -12,6 +12,19 @@ import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contrac
 import { TimingObserver } from "@stream44.studio/encapsulate/spine-factories/TimingObserver"
 
 async function findWorkspaceRoot(): Promise<string> {
+    const isInitCommand = process.argv.includes('init')
+    if (isInitCommand) {
+        const { mkdir, writeFile } = await import('fs/promises')
+        const workspaceDir = join(process.cwd(), '.workspace')
+        const workspaceConfigPath = join(workspaceDir, 'workspace.yaml')
+
+        await mkdir(workspaceDir, { recursive: true })
+        const workspaceYaml = `extends:\n  - 't44/workspace.yaml'\n`
+        await writeFile(workspaceConfigPath, workspaceYaml)
+
+        return process.cwd()
+    }
+
     let currentDir = resolve(process.cwd())
 
     while (true) {
@@ -43,6 +56,12 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
     const eventsByKey = new Map<string, any>()
 
     const workspaceRootDir = await findWorkspaceRoot()
+
+    if (process.env.DEBUG_T44) {
+        console.error('DEBUG: workspaceRootDir =', workspaceRootDir)
+        console.error('DEBUG: process.cwd() =', process.cwd())
+        console.error('DEBUG: import.meta.dir =', (import.meta as any).dir)
+    }
 
     const { encapsulate, freeze, CapsulePropertyTypes, makeImportStack, hoistSnapshot } = await CapsuleSpineFactory({
         spineFilesystemRoot: workspaceRootDir,

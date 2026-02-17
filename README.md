@@ -4,7 +4,7 @@
 
 ⚠️ **Disclaimer:** Under active development. Code has not been audited, APIs and interfaces are subject to change.
 
-Terminal44 Workspace Foundation
+Terminal44 Workspace Foundation [![Tests](https://github.com/Stream44/t44/actions/workflows/test.yaml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/test.yaml?query=branch%3Amain)
 ===
 
 > Bedrock in a storm of constant change. A web3 + AI ready workspace you can build an empire on.

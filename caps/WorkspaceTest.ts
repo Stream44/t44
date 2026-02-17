@@ -70,6 +70,13 @@ export async function capsule({
                 workbenchDir: {
                     type: CapsulePropertyTypes.GetterFunction,
                     value: function (this: any): string {
+                        // Use testRootDir if available (absolute path), otherwise fall back to moduleFilepath
+                        const testRootDir = this.testRootDir
+                        if (testRootDir) {
+                            const moduleFilepath = this['#@stream44.studio/encapsulate/structs/Capsule'].rootCapsule.moduleFilepath
+                            const moduleName = basename(moduleFilepath).replace(/\.[^\.]+$/, '')
+                            return join(testRootDir, '.~o/workspace.foundation/workbenches', moduleName)
+                        }
 
                         const moduleFilepath = this['#@stream44.studio/encapsulate/structs/Capsule'].rootCapsule.moduleFilepath
                         const dir = join(dirname(moduleFilepath), '.~o/workspace.foundation/workbenches', basename(moduleFilepath).replace(/\.[^\.]+$/, ''))
@@ -93,6 +100,8 @@ export async function capsule({
                 EnsureEmptyWorkbenchDir: {
                     type: CapsulePropertyTypes.StructInit,
                     value: async function (this: any) {
+                        // Only run if bunTest is available (test mode)
+                        if (!this.bunTest) return
                         await this.emptyWorkbenchDir()
                     }
                 },

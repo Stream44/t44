@@ -12,7 +12,7 @@ import * as bunTest from 'bun:test'
 import { run } from 't44/workspace-rt'
 
 const {
-    test: { describe, it, expect, beforeAll },
+    test: { describe, it, expect, beforeAll, workbenchDir },
 } = await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
     const spine = await encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
@@ -41,15 +41,15 @@ const {
     importMeta: import.meta
 })
 
-const testDir = join(import.meta.dir, '.~main.test')
 const t44Bin = join(import.meta.dir, '../../bin/t44')
+const bunExe = Bun.which('bun')
 
-const homeDir = join(testDir, 'lifecycle', 'home')
-const repoDir = join(testDir, 'lifecycle', 'repo')
+const homeDir = join(workbenchDir, 'lifecycle', 'home')
+const repoDir = join(workbenchDir, 'lifecycle', 'repo')
 const env = { ...process.env, T44_HOME_DIR: homeDir, T44_KEYS_PASSPHRASE: 't44-test' }
 
 async function runT44(...args: string[]) {
-    const proc = Bun.spawn([t44Bin, ...args, '--yes'], {
+    const proc = Bun.spawn([bunExe!, t44Bin, ...args, '--yes'], {
         env,
         cwd: repoDir,
         stdout: 'pipe',
@@ -95,24 +95,19 @@ async function runT44(...args: string[]) {
 describe('t44 lifecycle', function () {
 
     beforeAll(async () => {
-        await rm(join(testDir, 'lifecycle'), { recursive: true, force: true })
+        await rm(join(workbenchDir, 'lifecycle'), { recursive: true, force: true })
         await mkdir(homeDir, { recursive: true })
         await mkdir(join(homeDir, '.ssh'), { recursive: true })
-        await mkdir(join(repoDir, '.workspace'), { recursive: true })
-
-        const workspaceYaml = `extends:
-  - 't44/workspace.yaml'
-`
-        await writeFile(join(repoDir, '.workspace', 'workspace.yaml'), workspaceYaml)
+        await mkdir(repoDir, { recursive: true })
+        // Note: .workspace/workspace.yaml is now created automatically by t44 init
     })
 
     it('init --yes initializes workspace', async () => {
-        const { exitCode, stdout, stderr } = await runT44('info')
+        const { exitCode, stdout, stderr } = await runT44('init')
 
-        if (exitCode !== 0) {
-            console.log('STDOUT:', stdout)
-            console.log('STDERR:', stderr)
-        }
+        console.log('STDOUT:', stdout)
+        console.log('STDERR:', stderr)
+        console.log('EXIT CODE:', exitCode)
 
         expect(exitCode).toBe(0)
 
@@ -132,7 +127,7 @@ describe('t44 lifecycle', function () {
 
     it('activate — bin/activate.ts outputs shell exports', async () => {
         const activateBin = join(import.meta.dir, '../../bin/activate.ts')
-        const proc = Bun.spawn([activateBin, '--yes'], {
+        const proc = Bun.spawn([bunExe!, activateBin, '--yes'], {
             env,
             cwd: repoDir,
             stdout: 'pipe',
