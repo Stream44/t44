@@ -22,5 +22,8 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Initialize workspace
+        run: ./bin/t44 init --yes
+
       - name: Run tests
-        run: bun test
+        run: bun test --bail
