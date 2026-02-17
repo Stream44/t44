@@ -242,11 +242,24 @@ function resolveExtendPath(extendPath: string, configDir: string): string {
             filePath = parts.slice(1).join('/')
         }
 
-        // Walk up from configDir looking for node_modules/<packageName>
-        const { existsSync } = require('fs')
+        // Walk up from configDir looking for self-package or node_modules/<packageName>
+        const { existsSync, readFileSync } = require('fs')
         let searchDir = configDir
         let packageDir = ''
         while (searchDir !== dirname(searchDir)) {
+            // Check if this directory's package.json matches the requested package (self-package resolution)
+            const selfPjPath = join(searchDir, 'package.json')
+            if (existsSync(selfPjPath)) {
+                try {
+                    const pj = JSON.parse(readFileSync(selfPjPath, 'utf-8'))
+                    if (pj.name === packageName) {
+                        packageDir = searchDir
+                        break
+                    }
+                } catch { }
+            }
+
+            // Check node_modules
             const candidate = join(searchDir, 'node_modules', packageName)
             if (existsSync(join(candidate, 'package.json'))) {
                 packageDir = candidate
