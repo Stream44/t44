@@ -57,12 +57,6 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
     const workspaceRootDir = await findWorkspaceRoot()
 
-    if (process.env.DEBUG_T44) {
-        console.error('DEBUG: workspaceRootDir =', workspaceRootDir)
-        console.error('DEBUG: process.cwd() =', process.cwd())
-        console.error('DEBUG: import.meta.dir =', (import.meta as any).dir)
-    }
-
     const { encapsulate, freeze, CapsulePropertyTypes, makeImportStack, hoistSnapshot } = await CapsuleSpineFactory({
         spineFilesystemRoot: workspaceRootDir,
         capsuleModuleProjectionRoot: (import.meta as any).dir,
