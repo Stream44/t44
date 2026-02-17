@@ -6,10 +6,6 @@ import { mkdir } from 'fs/promises'
 // Global cache for loaded env files (this is fine as a cache)
 const loadedEnvFiles = new Set<string>()
 
-// Global set to track providers with missing credentials per test file
-// Once a provider is marked as missing credentials, all subsequent tests using that provider are skipped
-const missingCredentialsProviders = new Set<string>()
-
 export async function capsule({
     encapsulate,
     CapsulePropertyTypes,
@@ -125,14 +121,6 @@ export async function capsule({
                         const bunTestModule = this.bunTest
                         const itMethod = (name: string, fn: () => void | Promise<void>, options?: number | BunTest.TestOptions) => {
                             return bunTestModule.it(name, async () => {
-                                // Check if any provider is already marked as missing credentials - skip immediately
-                                if (missingCredentialsProviders.size > 0) {
-                                    const providers = Array.from(missingCredentialsProviders).join(', ')
-                                    console.log(`\n   ⚠️  Skipping test: ${providers} credentials not configured`)
-                                    bunTestModule.expect(true).toBe(true)
-                                    return
-                                }
-
                                 try {
                                     await fn()
                                 } catch (error: any) {
@@ -141,8 +129,6 @@ export async function capsule({
                                         const parts = error.message.slice('MISSING_CREDENTIALS:'.length).split(':')
                                         const provider = parts[0] || 'unknown'
                                         const credentialName = parts[1] || 'credentials'
-                                        // Mark this provider as missing credentials for subsequent tests
-                                        missingCredentialsProviders.add(provider)
                                         console.log(`\n   ⚠️  Skipping test: ${provider} credentials not configured (${credentialName})`)
                                         bunTestModule.expect(true).toBe(true) // Mark as passed/skipped
                                         return
@@ -165,14 +151,6 @@ export async function capsule({
                         const bunTestModule = this.bunTest
                         const testMethod = (name: string, fn: () => void | Promise<void>, options?: number | BunTest.TestOptions) => {
                             return bunTestModule.test(name, async () => {
-                                // Check if any provider is already marked as missing credentials - skip immediately
-                                if (missingCredentialsProviders.size > 0) {
-                                    const providers = Array.from(missingCredentialsProviders).join(', ')
-                                    console.log(`\n   ⚠️  Skipping test: ${providers} credentials not configured`)
-                                    bunTestModule.expect(true).toBe(true)
-                                    return
-                                }
-
                                 try {
                                     await fn()
                                 } catch (error: any) {
@@ -181,8 +159,6 @@ export async function capsule({
                                         const parts = error.message.slice('MISSING_CREDENTIALS:'.length).split(':')
                                         const provider = parts[0] || 'unknown'
                                         const credentialName = parts[1] || 'credentials'
-                                        // Mark this provider as missing credentials for subsequent tests
-                                        missingCredentialsProviders.add(provider)
                                         console.log(`\n   ⚠️  Skipping test: ${provider} credentials not configured (${credentialName})`)
                                         bunTestModule.expect(true).toBe(true) // Mark as passed/skipped
                                         return
