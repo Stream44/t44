@@ -6,7 +6,7 @@ export const testConfig = {
 }
 
 import * as bunTest from 'bun:test'
-import { run } from '@t44/t44/workspace-rt'
+import { run } from 't44/workspace-rt'
 
 const {
     test: { describe, it, expect },
