@@ -91,7 +91,7 @@ export async function capsule({
                     }
                 },
                 EnsureEmptyWorkbenchDir: {
-                    type: CapsulePropertyTypes.StructInit,
+                    type: CapsulePropertyTypes.Init,
                     value: async function (this: any) {
                         // Only run if bunTest is available (test mode)
                         if (!this.bunTest) return
@@ -211,6 +211,25 @@ export async function capsule({
                         return this.bunTest.afterEach(async () => {
                             await fn()
                         })
+                    }
+                },
+                getRandomPort: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any): Promise<number> {
+                        const net = await import('net')
+                        const isPortAvailable = (port: number): Promise<boolean> => {
+                            return new Promise((resolve) => {
+                                const server = net.createServer()
+                                server.once('error', () => resolve(false))
+                                server.once('listening', () => { server.close(); resolve(true) })
+                                server.listen(port, '127.0.0.1')
+                            })
+                        }
+                        for (let attempt = 0; attempt < 10; attempt++) {
+                            const port = 10000 + Math.floor(Math.random() * (65535 - 10000))
+                            if (await isPortAvailable(port)) return port
+                        }
+                        throw new Error('Could not find an available port after 10 attempts')
                     }
                 },
             }

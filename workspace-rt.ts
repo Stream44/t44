@@ -132,6 +132,11 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
                 '#': {
                     testRootDir: options?.importMeta?.dir
                 }
+            },
+            ['@stream44.studio/t44-ipfs.tech/caps/IpfsWorkbench']: {
+                '#': {
+                    cacheDir: join(workspaceRootDir, '.~o/workspace.foundation', '@t44.sh~t44-ipfs.tech~caps~IpfsWorkbench', 'daemons')
+                }
             }
         }
     }, async (opts) => {
