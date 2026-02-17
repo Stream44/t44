@@ -71,7 +71,7 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { args }: any): Promise<void> {
 
-                        const { projectSelector, rc, release, bump, publish, dangerouslyResetMain, yesSignoff } = args
+                        const { projectSelector, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, yesSignoff } = args
 
                         // Determine if this is a dry-run (default) or actual publish
                         const isDryRun = !rc && !release && !bump && !publish
@@ -149,7 +149,8 @@ export async function capsule({
                             await this.ProjectRepository.sync({
                                 rootDir: repoSourceDir,
                                 sourceDir: projectSourceDir,
-                                gitignorePath
+                                gitignorePath,
+                                excludePatterns: repositoriesConfig.alwaysIgnore || []
                             })
 
                             stageSourceDirs.set(repoName, repoSourceDir)
@@ -433,8 +434,9 @@ export async function capsule({
                                 })
                             } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing' && !isDryRun) {
                                 await this.GitRepository.push({
-                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
+                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir, alwaysIgnore: repositoriesConfig.alwaysIgnore },
                                     dangerouslyResetMain,
+                                    dangerouslyResetGordianOpenIntegrity,
                                     yesSignoff,
                                     metadata: gitMetadata.get(repoName),
                                     projectSourceDir: (repoConfig as any).sourceDir

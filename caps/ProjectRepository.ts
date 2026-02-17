@@ -62,10 +62,11 @@ export async function capsule({
                 },
                 sync: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, { rootDir, sourceDir, gitignorePath }: {
+                    value: async function (this: any, { rootDir, sourceDir, gitignorePath, excludePatterns }: {
                         rootDir: string
                         sourceDir: string
                         gitignorePath?: string
+                        excludePatterns?: string[]
                     }): Promise<void> {
                         let gitignoreExists = false
                         if (gitignorePath) {
@@ -78,6 +79,12 @@ export async function capsule({
                         const rsyncArgs = ['rsync', '-a', '--delete', '--exclude', '.git']
                         if (gitignoreExists && gitignorePath) {
                             rsyncArgs.push('--exclude-from=' + gitignorePath)
+                        }
+                        // Add additional exclude patterns from alwaysIgnore config
+                        if (excludePatterns && excludePatterns.length > 0) {
+                            for (const pattern of excludePatterns) {
+                                rsyncArgs.push('--exclude', pattern)
+                            }
                         }
                         rsyncArgs.push(sourceDir + '/', rootDir + '/')
                         await $`${rsyncArgs}`

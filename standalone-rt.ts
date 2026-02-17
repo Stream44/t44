@@ -38,7 +38,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
     const { encapsulate, freeze, CapsulePropertyTypes, makeImportStack, hoistSnapshot } = await CapsuleSpineFactory({
         spineFilesystemRoot,
-        capsuleModuleProjectionRoot: (import.meta as any).dir,
+        capsuleModuleProjectionRoot: options?.importMeta?.dir!,
         enableCallerStackInference: true,
         spineContracts: {
             ['#' + CapsuleSpineContract['#']]: CapsuleSpineContract

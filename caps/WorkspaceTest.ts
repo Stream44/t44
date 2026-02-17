@@ -1,7 +1,7 @@
-
 import type * as BunTest from 'bun:test'
 import { config as loadDotenv } from 'dotenv'
-import { join } from 'path'
+import { join, dirname, basename } from 'path'
+import { mkdir } from 'fs/promises'
 
 // Global cache for loaded env files (this is fine as a cache)
 const loadedEnvFiles = new Set<string>()
@@ -65,6 +65,35 @@ export async function capsule({
                             this.loadEnvFiles(this.testRootDir)
                         }
                         return process.env[envVarName]
+                    }
+                },
+                workbenchDir: {
+                    type: CapsulePropertyTypes.GetterFunction,
+                    value: function (this: any): string {
+
+                        const moduleFilepath = this['#@stream44.studio/encapsulate/structs/Capsule'].rootCapsule.moduleFilepath
+                        const dir = join(dirname(moduleFilepath), '.~o/workspace.foundation/workbenches', basename(moduleFilepath).replace(/\.[^\.]+$/, ''))
+
+                        return dir
+                    }
+                },
+                emptyWorkbenchDir: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any): Promise<void> {
+                        const dir = this.workbenchDir
+
+                        // Ensure the directory exists first
+                        await mkdir(dir, { recursive: true })
+
+                        // Remove directory contents (not the directory itself) including dotfiles
+                        // Use shell with proper globbing to handle both regular files and dotfiles
+                        await Bun.$`sh -c 'rm -rf ${dir}/* ${dir}/.[!.]* ${dir}/..?* 2>/dev/null || true'`.quiet()
+                    }
+                },
+                EnsureEmptyWorkbenchDir: {
+                    type: CapsulePropertyTypes.StructInit,
+                    value: async function (this: any) {
+                        await this.emptyWorkbenchDir()
                     }
                 },
                 describe: {
@@ -161,7 +190,7 @@ export async function capsule({
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: capsule['#'],
+        capsuleName: capsule['#']
     })
 }
 capsule['#'] = 't44/caps/WorkspaceTest'

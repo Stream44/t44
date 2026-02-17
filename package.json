@@ -10,6 +10,9 @@
     "bin": {
         "t44": "./bin/t44"
     },
+    "scripts": {
+        "test": "bun test"
+    },
     "exports": {
         "./workspace-rt": "./workspace-rt.ts",
         "./standalone-rt": "./standalone-rt.ts",

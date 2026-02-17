@@ -55,6 +55,8 @@ extends:
             value: optional
           dangerously-reset-main:
             description: Reset the git repository and force push to remote.
+          dangerously-reset-gordian-open-integrity:
+            description: Reset the Gordian Open Integrity trust root.
           yes-signoff:
             description: Automatically agree to DCO sign-off without prompting.
       deploy:

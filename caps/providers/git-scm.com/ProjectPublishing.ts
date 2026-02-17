@@ -90,7 +90,8 @@ export async function capsule({
                         await this.ProjectRepository.sync({
                             rootDir: stageDir,
                             sourceDir: projectSourceDir,
-                            gitignorePath
+                            gitignorePath,
+                            excludePatterns: config.alwaysIgnore || []
                         })
 
                         // Generate files from config properties starting with '/'
@@ -195,7 +196,7 @@ export async function capsule({
                 },
                 push: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, { config, dangerouslyResetMain, yesSignoff, metadata, projectSourceDir }: { config: any, dangerouslyResetMain?: boolean, yesSignoff?: boolean, metadata: any, projectSourceDir?: string }) {
+                    value: async function (this: any, { config, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, yesSignoff, metadata, projectSourceDir }: { config: any, dangerouslyResetMain?: boolean, dangerouslyResetGordianOpenIntegrity?: boolean, yesSignoff?: boolean, metadata: any, projectSourceDir?: string }) {
 
                         const {
                             originUri,
@@ -327,25 +328,15 @@ export async function capsule({
                                     await rm(join(dir!, '.dco-signatures'), { force: true })
                                 }
 
-                                // Create OI identity using the workspace signing key
-                                console.log(`Creating GordianOpenIntegrity identity ...`)
-                                console.log(chalk.gray(`  Author: ${authorName} <${authorEmail}>`))
-                                const author = await this.GordianOpenIntegrity.createIdentity({
-                                    key: {
-                                        privateKeyPath: signingKeyPath,
-                                        publicKeyPath: `${signingKeyPath}.pub`,
-                                        publicKey: signingPublicKey,
-                                        fingerprint: signingFingerprint,
-                                    },
-                                    authorName,
-                                    authorEmail,
-                                })
-
-                                // Create OI inception repo at stageDir
+                                // Create OI inception repo at stageDir using the workspace signing key
                                 console.log(`Creating GordianOpenIntegrity inception repository ...`)
+                                console.log(chalk.gray(`  Author: ${authorName} <${authorEmail}>`))
                                 const repoResult = await this.GordianOpenIntegrity.createRepository({
                                     repoDir: stageDir,
-                                    author,
+                                    authorName,
+                                    authorEmail,
+                                    firstTrustKeyPath: signingKeyPath,
+                                    provenanceKeyPath: signingKeyPath,
                                 })
                                 console.log(chalk.green(`  ✓ Inception commit: ${repoResult.commitHash.slice(0, 8)}`))
                                 console.log(chalk.green(`  ✓ DID: ${repoResult.did}`))
@@ -434,7 +425,8 @@ export async function capsule({
                                 await this.ProjectRepository.sync({
                                     rootDir: stageDir,
                                     sourceDir: projectSourcePath,
-                                    gitignorePath
+                                    gitignorePath,
+                                    excludePatterns: config.alwaysIgnore || []
                                 })
 
                                 // Generate files from config properties starting with '/'
@@ -454,7 +446,7 @@ export async function capsule({
                                 const hasDco = await this.Dco.hasDco({ repoDir: stageDir })
                                 if (hasDco) {
                                     console.log(chalk.cyan(`DCO.md detected — running DCO signing process ...`))
-                                    await this.Dco.sign({ repoDir: stageDir, autoAgree: yesSignoff, signingKeyPath: author.sshKey.privateKeyPath })
+                                    await this.Dco.sign({ repoDir: stageDir, autoAgree: yesSignoff, signingKeyPath })
                                 }
 
                                 // Stage all files and commit as a signed commit
@@ -462,7 +454,9 @@ export async function capsule({
                                 await $`git add -A`.cwd(stageDir).quiet()
                                 await this.GordianOpenIntegrity.commitToRepository({
                                     repoDir: stageDir,
-                                    author,
+                                    authorName,
+                                    authorEmail,
+                                    signingKeyPath,
                                     message: 'Published using @Stream44 Studio',
                                 })
                                 console.log(chalk.green(`  ✓ Source content committed`))
@@ -516,7 +510,113 @@ export async function capsule({
                                 })
                                 console.log(`Repository reset to initial commit`)
                             }
-                        } else if (hasNewChanges) {
+                        }
+
+                        // Handle Gordian Open Integrity trust root reset (without deleting git history)
+                        if (dangerouslyResetGordianOpenIntegrity && oiEnabled && !dangerouslyResetMain) {
+                            console.log(chalk.cyan(`\nResetting Gordian Open Integrity trust root ...`))
+
+                            // Get author info from workspace.yaml config
+                            const authorConfig = config.provider?.config?.RepositorySettings?.author
+                            if (!authorConfig?.name || !authorConfig?.email) {
+                                throw new Error('GordianOpenIntegrity requires author.name and author.email in RepositorySettings config')
+                            }
+                            const authorName = authorConfig.name
+                            const authorEmail = authorConfig.email
+
+                            // Resolve the workspace signing key
+                            const signingKeyPath = await this.SigningKey.getKeyPath()
+                            const signingPublicKey = await this.SigningKey.getPublicKey()
+                            const signingFingerprint = await this.SigningKey.getFingerprint()
+                            const signingKeyName = await this.SigningKey.getKeyName()
+                            if (!signingKeyPath || !signingPublicKey || !signingFingerprint) {
+                                throw new Error('Signing key not configured. Run SigningKey.ensureKey() first.')
+                            }
+                            console.log(chalk.gray(`  Signing key: ${signingKeyName} (${signingKeyPath})`))
+                            console.log(chalk.gray(`  Author: ${authorName} <${authorEmail}>`))
+
+                            // Check if .repo-identifier exists to decide which method to call
+                            const repoIdentifierPath = join(stageDir, '.repo-identifier')
+                            let repoIdentifierExists = false
+                            try {
+                                await access(repoIdentifierPath, constants.F_OK)
+                                repoIdentifierExists = true
+                            } catch {
+                                // File doesn't exist
+                            }
+
+                            let repoResult: any
+                            if (repoIdentifierExists) {
+                                // .repo-identifier exists — reset trust root only
+                                console.log(chalk.gray(`  Found existing .repo-identifier — resetting trust root only`))
+                                repoResult = await this.GordianOpenIntegrity.createTrustRoot({
+                                    repoDir: stageDir,
+                                    authorName,
+                                    authorEmail,
+                                    firstTrustKeyPath: signingKeyPath,
+                                    provenanceKeyPath: signingKeyPath,
+                                })
+                            } else {
+                                // No .repo-identifier — create full repository (identifier + trust root)
+                                console.log(chalk.gray(`  No .repo-identifier found — creating repository identifier and trust root`))
+                                repoResult = await this.GordianOpenIntegrity.createRepository({
+                                    repoDir: stageDir,
+                                    authorName,
+                                    authorEmail,
+                                    firstTrustKeyPath: signingKeyPath,
+                                    provenanceKeyPath: signingKeyPath,
+                                })
+                            }
+                            console.log(chalk.green(`  ✓ New trust root created`))
+                            console.log(chalk.green(`  ✓ DID: ${repoResult.did}`))
+
+                            // Copy .o/GordianOpenIntegrity.yaml and lifehash images to source directories
+                            const stageODir = join(stageDir, '.o')
+                            const projectSourcePath = join(config.sourceDir)
+
+                            const prStageInceptionDir = join(projectSourcePath, '.o')
+                            await mkdir(prStageInceptionDir, { recursive: true })
+                            await copyFile(join(stageODir, 'GordianOpenIntegrity.yaml'), join(prStageInceptionDir, 'GordianOpenIntegrity.yaml'))
+                            for (const lifehashFile of ['GordianOpenIntegrity-InceptionLifehash.svg', 'GordianOpenIntegrity-CurrentLifehash.svg']) {
+                                await copyFile(join(stageODir, lifehashFile), join(prStageInceptionDir, lifehashFile))
+                            }
+
+                            if (projectSourceDir) {
+                                const sourceInceptionDir = join(projectSourceDir, '.o')
+                                await mkdir(sourceInceptionDir, { recursive: true })
+                                await copyFile(join(stageODir, 'GordianOpenIntegrity.yaml'), join(sourceInceptionDir, 'GordianOpenIntegrity.yaml'))
+                                for (const lifehashFile of ['GordianOpenIntegrity-InceptionLifehash.svg', 'GordianOpenIntegrity-CurrentLifehash.svg']) {
+                                    await copyFile(join(stageODir, lifehashFile), join(sourceInceptionDir, lifehashFile))
+                                }
+                            }
+                            console.log(chalk.green(`  ✓ Copied .o/GordianOpenIntegrity.yaml and lifehash images to source directories`))
+
+                            // Update Repository DID in README.md files if present
+                            const DID_PATTERN = /^(Repository DID: `)([^`]*)(`)$/m
+                            for (const dir of [stageDir, projectSourcePath, projectSourceDir].filter(Boolean)) {
+                                const readmePath = join(dir!, 'README.md')
+                                try {
+                                    const readmeContent = await readFile(readmePath, 'utf-8')
+                                    if (DID_PATTERN.test(readmeContent)) {
+                                        const updated = readmeContent.replace(DID_PATTERN, `$1${repoResult.did}$3`)
+                                        await writeFile(readmePath, updated, 'utf-8')
+                                        console.log(chalk.green(`  ✓ Updated Repository DID in ${readmePath}`))
+                                    }
+                                } catch { }
+                            }
+
+                            // Store generator in the registry
+                            const registryRootDir = await this.HomeRegistry.rootDir
+                            const oiRegistryDir = join(registryRootDir, OI_REGISTRY_CAPSULE, repoResult.did)
+                            await mkdir(oiRegistryDir, { recursive: true })
+
+                            const repoGeneratorPath = join(stageDir, GENERATOR_FILE)
+                            const registryGeneratorPath = join(oiRegistryDir, 'GordianOpenIntegrity-generator.yaml')
+                            await cp(repoGeneratorPath, registryGeneratorPath)
+                            console.log(chalk.green(`  ✓ Generator stored at: ${registryGeneratorPath}`))
+                        }
+
+                        if (!dangerouslyResetMain && hasNewChanges) {
                             // Check if DCO.md exists in the stage dir
                             const hasDco = await this.Dco.hasDco({ repoDir: stageDir })
 

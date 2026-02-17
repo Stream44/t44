@@ -10,6 +10,9 @@ import { join } from 'path'
 const shownConnectionTitles = new Set<string>()
 const shownDescriptions = new Set<string>()
 
+// Cache for in-flight getStoredConfig promises to prevent parallel decryption race conditions
+const storedConfigCache = new Map<string, Promise<Record<string, any> | null>>()
+
 export async function capsule({
     encapsulate,
     CapsulePropertyTypes,
@@ -77,8 +80,28 @@ export async function capsule({
                 getStoredConfig: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any): Promise<Record<string, any> | null> {
-                        const { readFile } = await import('fs/promises')
                         const filepath = await this.getFilepath()
+
+                        // Use cached promise if already in-flight to prevent parallel decryption race conditions
+                        if (storedConfigCache.has(filepath)) {
+                            return storedConfigCache.get(filepath)!
+                        }
+
+                        const promise = this._getStoredConfigImpl(filepath)
+                        storedConfigCache.set(filepath, promise)
+
+                        try {
+                            return await promise
+                        } finally {
+                            // Clear cache after completion so next call gets fresh data
+                            storedConfigCache.delete(filepath)
+                        }
+                    }
+                },
+                _getStoredConfigImpl: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, filepath: string): Promise<Record<string, any> | null> {
+                        const { readFile } = await import('fs/promises')
 
                         try {
                             const content = await readFile(filepath, 'utf-8')
