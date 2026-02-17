@@ -1,25 +1,21 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "envelope": "ur:envelope/lrtpsotanshdhdcxndcmrllsaovdcxttwngmpawdcwurcpylesadfnamgtqdnbgdbygwesutluletiadoytpsojyfljljpieinhsjtgwjoihjtgajtjyihiojpinjykktpsokshnjkjkisdpihieeyececehescxfpfpfpfpfxeoglknhsfxehjzhtfygaehglghfeecfpfpfpfpgagdjtgoknhkfxgokpkkgmflgmgleogsdniofdemksksghgaidhdethfjnjegtecfxfphfeeflkphdkkjzkogwfecxjyeeeedpjkiniojtinjtiodpjeihkkoyaylftpsohdgltansgylftanshfhdcxbgftaxrfprctyajstensmkzcgdqduodtpeehrtpsyaimbkrpltherhmudiatuyhytansgrhdcxdirkkbhdinkneylnftaohhfsdiihdyiadkutpslbkphnsastlgzshyzcgyuyghdpoycsfncsfgoycsfztpsohdjktngdgmgwhflfaxhdimyawzaxjtlddndnlecyqzvdclkskotksafsskdmlgwpbgdszmrerncmuofpaxmkkeahluwnmoidbsiypedmaozsneykjpplurloolghesjedwjtbzstimswwladghiartlysokegtjtgrbkgscxeolemdhycsvtzezsmokebdtirpkbinwdfdtbkodlmhoekpssfristkahtniecwhtdljkhhbytt",
-  "mark": "8d079cf1",
-  "$defs": {
-    "envelope": {
-      "$ref": "https://datatracker.ietf.org/doc/draft-mcnally-envelope/"
-    },
-    "mark": {
-      "$ref": "https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2025-001-provenance-mark.md"
-    }
-  }
-}
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$defs:
+  envelope:
+    $ref: "https://datatracker.ietf.org/doc/draft-mcnally-envelope/"
+  mark:
+    $ref: "https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2025-001-provenance-mark.md"
+envelope: "ur:envelope/lptpsotanshdhdcxwtmtbzpmhhetwdehsknyvdrejphdntiavopycecmmuwzrlhecaiyprhhbylbytrnoycsfztpsohdjktngdgmgwhflfaxhdimeejoothkcfmepmptmnzczojyfluybtkeyawzdasojyhtskwecaiywfgarhkgotcmhkvldpzctkhlsthyntsaaddijtmejeleetwnwmjohftyjknsoyimuowfahgmsabzenknuyaevyptjtndcabndtylgswliadydistutkbjlftoydktewmsfmefhsglsprvdrhtlwftdhnrdfpdepkoyaylftpsohdgltansgylftanshfhdcxfyonwttkhdtokngtjpbdiacwmejnintiwdpeadflmhpsdespynkbbkmsnydajsqdtansgrhdcxgubabwwzdsclswurecrhfmltsnhkhkamleptdywyamtydasgkivsqznsrnfpbdadoycsfncsfgoytpsoksctfljljpieinhsjtgwjoihjtgajtjyihiojpinjykkdmguiniojtinjtiogrihkktpsokshnjkjkisdpihieeyececehescxfpfpfpfpfxeoglknhsfxehjzhtfygaehglghfeecfpfpfpfpgagdjtgoknhkfxgokpkkgmflgmgleogsdniofdemksksghgaidhdethfjnjegtecfxfphfeeflkphdkkjzkogwfecxjyeeeedpjkiniojtinjtiodpjeihkkoytpsoksdtfljljpieinhsjtgwjoihjtgajtjyihiojpinjykkdmgmihjojljkinjyjljpkkgaieihjtjyiniyinihjptpsoksehieinieftjpihjojlftidieeoeyiaiadyeheteehsiydyeciyeneyeseeideyeeemeeieehiyesdyemeceyeteteodyetemeceylajztyks"
+mark: "d678e256"
 ---
-# Repository DID: did:repo:7d0bdb82f70c6b3dfade356f9e667cdd0cf0cc88
-# Current Mark: 8d079cf1 (🅑 LUNG AUNT NEWS WHEN)
-# Inception Mark: bcf4ef00 (🅑 ROOF WORK WEBS ABLE)
-# XID(9b16b783) [
-#     "GordianOpenIntegrity": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPnUzYCUuyRGRN3L+gH7xxTIbX8VmkM5CAV4GuXylvOE t44-signing-key"
+# Repository DID: did:repo:bd32cc0184af05f6294b2474d1f9075288308752
+# Current Mark: d678e256 (🅑 TOMB KEYS VETO HALF)
+# Inception Mark: 2ddc3ec9 (🅑 DROP UNDO FILM SOLO)
+# XID(f09615ad) [
+#     'provenance': Bytes(115)
 #     'key': Bytes(78) [
 #         'allow': 'All'
 #     ]
-#     'provenance': Bytes(115)
+#     "GordianOpenIntegrity.SigningKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPnUzYCUuyRGRN3L+gH7xxTIbX8VmkM5CAV4GuXylvOE t44-signing-key"
+#     "GordianOpenIntegrity.RepositoryIdentifier": "did:repo:bd32cc0184af05f6294b2474d1f9075288308752"
 # ]
 # Trust established using https://github.com/Stream44/t44-BlockchainCommons.com
