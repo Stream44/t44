@@ -1,4 +1,22 @@
 
+// Error prefix for missing credentials in non-interactive mode
+// Format: "MISSING_CREDENTIALS:provider:credentialName:message"
+export const MISSING_CREDENTIALS_PREFIX = 'MISSING_CREDENTIALS:'
+
+export function isMissingCredentialsError(error: any): { provider: string; credentialName: string; message: string } | null {
+    if (error?.message?.startsWith(MISSING_CREDENTIALS_PREFIX)) {
+        const parts = error.message.slice(MISSING_CREDENTIALS_PREFIX.length).split(':')
+        if (parts.length >= 3) {
+            return {
+                provider: parts[0],
+                credentialName: parts[1],
+                message: parts.slice(2).join(':')
+            }
+        }
+    }
+    return null
+}
+
 // Global prompt queue to ensure sequential prompting and deduplication
 const globalPromptQueue: Array<() => Promise<any>> = []
 const globalActivePrompts: Record<string, Promise<any>> = {}
@@ -160,9 +178,15 @@ export async function capsule({
                             }
                         }
 
-                        // In non-interactive mode, throw error if env value not found
+                        // In non-interactive mode, throw error with MISSING_CREDENTIALS prefix
                         if (!process.stdin.isTTY && promptFactId) {
+                            // Extract provider from promptFactId (e.g., "t44/structs/providers/dynadot.com/WorkspaceConnectionConfig:apiKey")
+                            const providerMatch = promptFactId.match(/providers\/([^/]+)\//)
+                            const provider = providerMatch ? providerMatch[1] : 'unknown'
+                            const credentialName = message.replace(/:$/, '')
+
                             throw new Error(
+                                `MISSING_CREDENTIALS:${provider}:${credentialName}:` +
                                 `Cannot prompt for "${message}" in non-interactive mode. ` +
                                 `Please run interactively first to configure credentials, or set the corresponding env variable.`
                             )

@@ -239,18 +239,39 @@ export async function capsule({
                                         }
 
                                         const statusResults = new Map<string, any>()
+                                        const skippedProviders = new Set<string>()
                                         await Promise.all(
                                             Array.from(statusPromises.entries()).map(async ([alias, promise]) => {
-                                                const result = await promise
-                                                // Filter out null results (passive mode, no cached data)
-                                                const filtered = Array.isArray(result) ? result.filter((r: any) => r !== null) : result
-                                                if (Array.isArray(filtered) && filtered.length > 0) {
-                                                    statusResults.set(alias, filtered)
-                                                } else if (!Array.isArray(filtered) && filtered !== null) {
-                                                    statusResults.set(alias, filtered)
+                                                try {
+                                                    const result = await promise
+                                                    // Filter out null results (passive mode, no cached data)
+                                                    const filtered = Array.isArray(result) ? result.filter((r: any) => r !== null) : result
+                                                    if (Array.isArray(filtered) && filtered.length > 0) {
+                                                        statusResults.set(alias, filtered)
+                                                    } else if (!Array.isArray(filtered) && filtered !== null) {
+                                                        statusResults.set(alias, filtered)
+                                                    }
+                                                } catch (error: any) {
+                                                    // Check for MISSING_CREDENTIALS error
+                                                    if (error?.message?.startsWith('MISSING_CREDENTIALS:')) {
+                                                        const parts = error.message.slice('MISSING_CREDENTIALS:'.length).split(':')
+                                                        const provider = parts[0] || 'unknown'
+                                                        skippedProviders.add(provider)
+                                                        // Set a skip marker for this alias
+                                                        statusResults.set(alias, [{ skipped: true, provider, reason: 'credentials not configured' }])
+                                                    } else {
+                                                        throw error
+                                                    }
                                                 }
                                             })
                                         )
+
+                                        // Log skipped providers once per deployment
+                                        if (skippedProviders.size > 0) {
+                                            for (const provider of skippedProviders) {
+                                                console.log(chalk.yellow(`\n   ⚠️  Skipping ${provider} status check: credentials not configured`))
+                                            }
+                                        }
 
                                         resolvedDeployments.push({ deploymentName, tree, statusResults })
                                     }
@@ -380,6 +401,9 @@ export async function capsule({
                                             const printStatus = (status: any) => {
                                                 if (!status) {
                                                     console.log(chalk.yellow(`${detailIndent}Status method not available for this provider`))
+                                                } else if (status.skipped) {
+                                                    // Credentials not configured - already logged at top level
+                                                    return
                                                 } else if (status.error) {
                                                     console.log(chalk.gray(`${detailIndent}Project: `) + chalk.magenta(status.projectName || 'N/A') + chalk.gray(' → ') + chalk.green(status.provider || 'unknown'))
                                                     console.log(chalk.red(`${detailIndent}Error:   ${status.error}`))
