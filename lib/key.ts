@@ -158,9 +158,15 @@ export function addKeyToAgent(privateKeyPath: string): boolean {
 /**
  * Ensure a key is loaded in the ssh-agent. Adds it if not already present.
  * Logs status messages using chalk.
+ * Skips adding to agent in non-TTY mode (e.g., CI environments).
  */
 export async function ensureKeyInAgent(privateKeyPath: string, keyName: string, keyLabel: string): Promise<void> {
     const chalk = (await import('chalk')).default
+
+    // Skip ssh-agent operations in non-TTY mode (CI, scripts, etc.)
+    if (!process.stdin.isTTY || process.env.CI) {
+        return
+    }
 
     if (isKeyInAgent(privateKeyPath)) {
         return
