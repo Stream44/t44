@@ -24,7 +24,7 @@ async function findPackageRoot(startDir: string): Promise<string> {
     }
 }
 
-export async function run(encapsulateHandler: any, runHandler: any, options?: { importMeta?: { dir: string } }) {
+export async function run(encapsulateHandler: any, runHandler: any, options?: { importMeta?: { dir: string }, runFromSnapshot?: boolean }) {
 
     const timing = process.argv.includes('--trace') ? TimingObserver({ startTime }) : undefined
 
@@ -36,7 +36,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
         ? await findPackageRoot(options.importMeta.dir)
         : process.cwd()
 
-    const { encapsulate, freeze, CapsulePropertyTypes, makeImportStack, hoistSnapshot } = await CapsuleSpineFactory({
+    const { encapsulate, freeze, CapsulePropertyTypes, makeImportStack, hoistSnapshot, run: spineRun } = await CapsuleSpineFactory({
         spineFilesystemRoot,
         capsuleModuleProjectionRoot: options?.importMeta?.dir!,
         enableCallerStackInference: true,
@@ -88,23 +88,36 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
         makeImportStack
     })
 
-    timing?.recordMajor('FREEZE')
+    let run
 
-    const snapshot = await freeze()
+    if (options?.runFromSnapshot === false) {
 
-    timing?.recordMajor('HOIST SNAPSHOT')
+        run = spineRun
 
-    const { run } = await hoistSnapshot({
-        snapshot
-    })
+        timing?.recordMajor('RUN (in-memory)')
+    } else {
 
-    timing?.recordMajor('RUN')
+        timing?.recordMajor('FREEZE')
+
+        const snapshot = await freeze()
+
+        timing?.recordMajor('HOIST SNAPSHOT')
+
+        const spine = await hoistSnapshot({
+            snapshot
+        })
+
+        run = spine.run
+
+        timing?.recordMajor('RUN (snapshot)')
+    }
 
     const result = await run({
         overrides: {
             ['t44/caps/WorkspaceTest']: {
                 '#': {
-                    testRootDir: options?.importMeta?.dir
+                    testRootDir: options?.importMeta?.dir,
+                    verbose: !!process.env.VERBOSE,
                 }
             },
             ['@stream44.studio/t44-ipfs.tech/caps/IpfsWorkbench']: {

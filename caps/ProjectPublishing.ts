@@ -67,6 +67,10 @@ export async function capsule({
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/ProjectCatalogs'
                 },
+                RepositoryLicense: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: 't44/caps/features/RepositoryLicense/ProjectPublishing'
+                },
                 run: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { args }: any): Promise<void> {
@@ -127,6 +131,24 @@ export async function capsule({
                                 console.log(`[t44] PUBLISH MODE: Pushing current state to '${publishFilter}' providers only (no version bump or tagging)\n`)
                             } else {
                                 console.log('[t44] PUBLISH MODE: Pushing current state to all providers (no version bump or tagging)\n')
+                            }
+                        }
+
+                        // Phase 0: Validate source directories (feature capsules that run before sync)
+                        console.log('[t44] Validating source directories ...\n')
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const providers = Array.isArray((repoConfig as any).providers)
+                                ? (repoConfig as any).providers
+                                : (repoConfig as any).provider
+                                    ? [(repoConfig as any).provider]
+                                    : []
+
+                            const projectSourceDir = join((repoConfig as any).sourceDir)
+                            for (const providerConfig of providers) {
+                                const licenseConfig = providerConfig.config?.['#t44/caps/features/RepositoryLicense/ProjectPublishing']
+                                if (licenseConfig) {
+                                    await this.RepositoryLicense.validateSource({ sourceDir: projectSourceDir, config: licenseConfig })
+                                }
                             }
                         }
 
@@ -303,8 +325,9 @@ export async function capsule({
                                     repoSourceDir
                                 })
                                 packageMetadata.set(repoName, metadata)
-                            } else if (capsuleName === 't44/caps/providers/github.com/ProjectPublishing' && !isDryRun) {
+                            } else if (capsuleName === 't44/caps/providers/github.com/ProjectPublishing') {
                                 // Ensure GitHub repo exists before git-scm.com tries to clone from it
+                                // This must run even in dry-run mode since git-scm.com prepare needs to clone the repo
                                 await this.GitHubRepository.push({ config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir } })
                             } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing') {
                                 const metadata = await this.GitRepository.prepare({

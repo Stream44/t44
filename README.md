@@ -182,4 +182,4 @@ Repository DID: `did:repo:bd32cc0184af05f6294b2474d1f9075288308752`
   </tr>
 </table>
 
-(c) 2026 [Christoph.diy](https://christoph.diy) • Code: `Apache 2.0` • Text: `CC-BY` • Created with [Stream44.Studio](https://Stream44.Studio)
+(c) 2026 [Christoph.diy](https://christoph.diy) • Code: `LGPL` • Text: `CC-BY` • Created with [Stream44.Studio](https://Stream44.Studio)

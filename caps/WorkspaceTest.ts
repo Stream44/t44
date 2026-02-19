@@ -27,6 +27,10 @@ export async function capsule({
                     type: CapsulePropertyTypes.Literal,
                     value: undefined
                 },
+                verbose: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: false,
+                },
                 testRootDir: {
                     type: CapsulePropertyTypes.Literal,
                     value: undefined as string | undefined,

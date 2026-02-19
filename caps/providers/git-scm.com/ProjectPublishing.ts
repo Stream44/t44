@@ -8,6 +8,39 @@ import chalk from 'chalk'
 const OI_REGISTRY_CAPSULE = '@t44.sh~t44~caps~providers~blockchaincommons.com~GordianOpenIntegrity'
 const GENERATOR_FILE = '.git/o/GordianOpenIntegrity-generator.yaml'
 
+async function copyFilesToSourceDirs({ files, sourceDir, targetDirs }: {
+    files: string[]
+    sourceDir: string
+    targetDirs: (string | undefined | null)[]
+}) {
+    for (const targetDir of targetDirs) {
+        if (!targetDir) continue
+        for (const file of files) {
+            const srcPath = join(sourceDir, file)
+            const destPath = join(targetDir, file)
+            try {
+                await access(srcPath, constants.F_OK)
+                await mkdir(join(destPath, '..'), { recursive: true })
+                await copyFile(srcPath, destPath)
+            } catch { }
+        }
+    }
+}
+
+async function fileExistsInGitHistory(stageDir: string, filePath: string): Promise<boolean> {
+    const result = await $`git log --all --format=%H -1 -- ${filePath}`.cwd(stageDir).quiet().nothrow()
+    return result.exitCode === 0 && result.text().trim().length > 0
+}
+
+async function fileExistsInWorkingTree(dir: string, filePath: string): Promise<boolean> {
+    try {
+        await access(join(dir, filePath), constants.F_OK)
+        return true
+    } catch {
+        return false
+    }
+}
+
 export async function capsule({
     encapsulate,
     CapsulePropertyTypes,
@@ -208,6 +241,43 @@ export async function capsule({
                         const oiConfig = config.provider?.config?.['#@stream44.studio/t44-blockchaincommons.com']
                         const oiEnabled = oiConfig?.GordianOpenIntegrity === true
 
+                        // Restore OI files that rsync --delete may have removed from the working tree.
+                        // rsync syncs source → stage and deletes anything not in source. OI files like
+                        // .repo-identifier and .o/* are committed in git but not in the source dir, so
+                        // rsync removes them. We restore them here so all downstream code can rely on
+                        // the working tree. This also copies them back to source dirs so future rsyncs
+                        // preserve them.
+                        if (oiEnabled && !dangerouslyResetMain) {
+                            const hasRepoIdInHistory = await fileExistsInGitHistory(stageDir, '.repo-identifier')
+                            const hasRepoIdInTree = await fileExistsInWorkingTree(stageDir, '.repo-identifier')
+
+                            if (hasRepoIdInHistory && !hasRepoIdInTree) {
+                                // .repo-identifier was committed but rsync deleted it — restore from git
+                                await $`git checkout HEAD -- .repo-identifier`.cwd(stageDir).quiet().nothrow()
+                            }
+
+                            const hasOiYamlInHistory = await fileExistsInGitHistory(stageDir, '.o/GordianOpenIntegrity.yaml')
+                            const hasOiYamlInTree = await fileExistsInWorkingTree(stageDir, '.o/GordianOpenIntegrity.yaml')
+
+                            if (hasOiYamlInHistory && !hasOiYamlInTree) {
+                                // OI files were committed but rsync deleted them — restore all from git
+                                const oiFiles = await this.GordianOpenIntegrity.getTrackedFiles()
+                                for (const file of oiFiles) {
+                                    await $`git checkout HEAD -- ${file}`.cwd(stageDir).quiet().nothrow()
+                                }
+                            }
+
+                            // Copy restored OI files back to source dirs so future rsyncs preserve them
+                            if (hasRepoIdInHistory || hasOiYamlInHistory) {
+                                const oiFiles = await this.GordianOpenIntegrity.getTrackedFiles()
+                                await copyFilesToSourceDirs({
+                                    files: oiFiles,
+                                    sourceDir: stageDir,
+                                    targetDirs: [config.sourceDir, projectSourceDir],
+                                })
+                            }
+                        }
+
                         if (dangerouslyResetMain) {
                             if (oiEnabled) {
                                 console.log(`Reset mode enabled with GordianOpenIntegrity - will create a fresh open integrity repo`)
@@ -218,7 +288,7 @@ export async function capsule({
 
                         // Git add and check for changes
                         console.log(`Committing changes ...`)
-                        const hasNewChanges = await this.ProjectRepository.addAll({ rootDir: stageDir })
+                        let hasNewChanges = await this.ProjectRepository.addAll({ rootDir: stageDir })
 
                         // Handle reset (works on existing commits, regardless of new changes)
                         let shouldReset = false
@@ -378,37 +448,18 @@ export async function capsule({
                                 await writeFile(join(oiRegistryDir, 'repo.json'), JSON.stringify(repoMeta, null, 2), 'utf-8')
                                 console.log(chalk.green(`  ✓ Registry metadata stored at: ${join(oiRegistryDir, 'repo.json')}`))
 
-                                // Copy .o/GordianOpenIntegrity.yaml to both the actual project source dir
-                                // AND the ProjectRepository stage dir (config.sourceDir) so that
-                                // rsync preserves it in the OI stage repo on this and future syncs
-                                const stageInceptionPath = join(stageDir, '.o', 'GordianOpenIntegrity.yaml')
-                                const projectSourcePath = join(config.sourceDir)
-
-                                // Copy to ProjectRepository stage dir (used as rsync source)
-                                const prStageInceptionDir = join(projectSourcePath, '.o')
-                                await mkdir(prStageInceptionDir, { recursive: true })
-                                await copyFile(stageInceptionPath, join(prStageInceptionDir, 'GordianOpenIntegrity.yaml'))
-
-                                // Copy lifehash SVGs to ProjectRepository stage dir
-                                const stageODir = join(stageDir, '.o')
-                                for (const lifehashFile of ['GordianOpenIntegrity-InceptionLifehash.svg', 'GordianOpenIntegrity-CurrentLifehash.svg']) {
-                                    await copyFile(join(stageODir, lifehashFile), join(prStageInceptionDir, lifehashFile))
-                                }
-
-                                // Copy to actual project source dir (persists across runs)
-                                if (projectSourceDir) {
-                                    const sourceInceptionDir = join(projectSourceDir, '.o')
-                                    await mkdir(sourceInceptionDir, { recursive: true })
-                                    await copyFile(stageInceptionPath, join(sourceInceptionDir, 'GordianOpenIntegrity.yaml'))
-                                    for (const lifehashFile of ['GordianOpenIntegrity-InceptionLifehash.svg', 'GordianOpenIntegrity-CurrentLifehash.svg']) {
-                                        await copyFile(join(stageODir, lifehashFile), join(sourceInceptionDir, lifehashFile))
-                                    }
-                                }
-                                console.log(chalk.green(`  ✓ Copied .o/GordianOpenIntegrity.yaml and lifehash images to source directories`))
+                                // Copy all OI tracked files back to source directories
+                                const oiTrackedFiles__ = await this.GordianOpenIntegrity.getTrackedFiles()
+                                await copyFilesToSourceDirs({
+                                    files: oiTrackedFiles__,
+                                    sourceDir: stageDir,
+                                    targetDirs: [config.sourceDir, projectSourceDir],
+                                })
+                                console.log(chalk.green(`  ✓ Copied OI files to source directories`))
 
                                 // Update Repository DID in README.md files if present
                                 const DID_PATTERN = /^(Repository DID: `)([^`]*)(`)$/m
-                                for (const dir of [projectSourcePath, projectSourceDir].filter(Boolean)) {
+                                for (const dir of [config.sourceDir, projectSourceDir].filter(Boolean)) {
                                     const readmePath = join(dir!, 'README.md')
                                     try {
                                         const readmeContent = await readFile(readmePath, 'utf-8')
@@ -421,10 +472,10 @@ export async function capsule({
 
                                 // Sync source files into the OI repo
                                 console.log(`Syncing source files ...`)
-                                const gitignorePath = join(projectSourcePath, '.gitignore')
+                                const gitignorePath = join(config.sourceDir, '.gitignore')
                                 await this.ProjectRepository.sync({
                                     rootDir: stageDir,
-                                    sourceDir: projectSourcePath,
+                                    sourceDir: config.sourceDir,
                                     gitignorePath,
                                     excludePatterns: config.alwaysIgnore || []
                                 })
@@ -535,15 +586,7 @@ export async function capsule({
                             console.log(chalk.gray(`  Signing key: ${signingKeyName} (${signingKeyPath})`))
                             console.log(chalk.gray(`  Author: ${authorName} <${authorEmail}>`))
 
-                            // Check if .repo-identifier exists to decide which method to call
-                            const repoIdentifierPath = join(stageDir, '.repo-identifier')
-                            let repoIdentifierExists = false
-                            try {
-                                await access(repoIdentifierPath, constants.F_OK)
-                                repoIdentifierExists = true
-                            } catch {
-                                // File doesn't exist
-                            }
+                            const repoIdentifierExists = await fileExistsInWorkingTree(stageDir, '.repo-identifier')
 
                             let repoResult: any
                             if (repoIdentifierExists) {
@@ -570,30 +613,18 @@ export async function capsule({
                             console.log(chalk.green(`  ✓ New trust root created`))
                             console.log(chalk.green(`  ✓ DID: ${repoResult.did}`))
 
-                            // Copy .o/GordianOpenIntegrity.yaml and lifehash images to source directories
-                            const stageODir = join(stageDir, '.o')
-                            const projectSourcePath = join(config.sourceDir)
-
-                            const prStageInceptionDir = join(projectSourcePath, '.o')
-                            await mkdir(prStageInceptionDir, { recursive: true })
-                            await copyFile(join(stageODir, 'GordianOpenIntegrity.yaml'), join(prStageInceptionDir, 'GordianOpenIntegrity.yaml'))
-                            for (const lifehashFile of ['GordianOpenIntegrity-InceptionLifehash.svg', 'GordianOpenIntegrity-CurrentLifehash.svg']) {
-                                await copyFile(join(stageODir, lifehashFile), join(prStageInceptionDir, lifehashFile))
-                            }
-
-                            if (projectSourceDir) {
-                                const sourceInceptionDir = join(projectSourceDir, '.o')
-                                await mkdir(sourceInceptionDir, { recursive: true })
-                                await copyFile(join(stageODir, 'GordianOpenIntegrity.yaml'), join(sourceInceptionDir, 'GordianOpenIntegrity.yaml'))
-                                for (const lifehashFile of ['GordianOpenIntegrity-InceptionLifehash.svg', 'GordianOpenIntegrity-CurrentLifehash.svg']) {
-                                    await copyFile(join(stageODir, lifehashFile), join(sourceInceptionDir, lifehashFile))
-                                }
-                            }
-                            console.log(chalk.green(`  ✓ Copied .o/GordianOpenIntegrity.yaml and lifehash images to source directories`))
+                            // Copy all OI tracked files back to source directories
+                            const oiTrackedFiles = await this.GordianOpenIntegrity.getTrackedFiles()
+                            await copyFilesToSourceDirs({
+                                files: oiTrackedFiles,
+                                sourceDir: stageDir,
+                                targetDirs: [config.sourceDir, projectSourceDir],
+                            })
+                            console.log(chalk.green(`  ✓ Copied OI files to source directories`))
 
                             // Update Repository DID in README.md files if present
                             const DID_PATTERN = /^(Repository DID: `)([^`]*)(`)$/m
-                            for (const dir of [stageDir, projectSourcePath, projectSourceDir].filter(Boolean)) {
+                            for (const dir of [stageDir, config.sourceDir, projectSourceDir].filter(Boolean)) {
                                 const readmePath = join(dir!, 'README.md')
                                 try {
                                     const readmeContent = await readFile(readmePath, 'utf-8')
@@ -614,6 +645,101 @@ export async function capsule({
                             const registryGeneratorPath = join(oiRegistryDir, 'GordianOpenIntegrity-generator.yaml')
                             await cp(repoGeneratorPath, registryGeneratorPath)
                             console.log(chalk.green(`  ✓ Generator stored at: ${registryGeneratorPath}`))
+                        }
+
+                        // Auto-initialize GordianOpenIntegrity if enabled but not yet set up
+                        // This handles: (1) first publish of a new repo, (2) OI newly enabled on existing repo
+                        if (oiEnabled && !dangerouslyResetMain && !dangerouslyResetGordianOpenIntegrity) {
+                            const repoIdentifierExists = await fileExistsInWorkingTree(stageDir, '.repo-identifier')
+
+                            if (!repoIdentifierExists) {
+                                console.log(chalk.cyan(`\nInitializing Gordian Open Integrity (first time setup) ...`))
+
+                                // Get author info from workspace.yaml config
+                                const authorConfig = config.provider?.config?.RepositorySettings?.author
+                                if (!authorConfig?.name || !authorConfig?.email) {
+                                    throw new Error('GordianOpenIntegrity requires author.name and author.email in RepositorySettings config')
+                                }
+                                const authorName = authorConfig.name
+                                const authorEmail = authorConfig.email
+
+                                // Resolve the workspace signing key
+                                const signingKeyPath = await this.SigningKey.getKeyPath()
+                                const signingPublicKey = await this.SigningKey.getPublicKey()
+                                const signingFingerprint = await this.SigningKey.getFingerprint()
+                                const signingKeyName = await this.SigningKey.getKeyName()
+                                if (!signingKeyPath || !signingPublicKey || !signingFingerprint) {
+                                    throw new Error('Signing key not configured. Run SigningKey.ensureKey() first.')
+                                }
+                                console.log(chalk.gray(`  Signing key: ${signingKeyName} (${signingKeyPath})`))
+                                console.log(chalk.gray(`  Author: ${authorName} <${authorEmail}>`))
+
+                                // Create full OI repository (identifier + trust root)
+                                const repoResult = await this.GordianOpenIntegrity.createRepository({
+                                    repoDir: stageDir,
+                                    authorName,
+                                    authorEmail,
+                                    firstTrustKeyPath: signingKeyPath,
+                                    provenanceKeyPath: signingKeyPath,
+                                })
+                                console.log(chalk.green(`  ✓ GordianOpenIntegrity initialized`))
+                                console.log(chalk.green(`  ✓ DID: ${repoResult.did}`))
+
+                                // Copy all OI tracked files back to source directories
+                                const oiTrackedFiles_ = await this.GordianOpenIntegrity.getTrackedFiles()
+                                await copyFilesToSourceDirs({
+                                    files: oiTrackedFiles_,
+                                    sourceDir: stageDir,
+                                    targetDirs: [config.sourceDir, projectSourceDir],
+                                })
+                                console.log(chalk.green(`  ✓ Copied OI files to source directories`))
+
+                                // Update Repository DID in README.md files if present
+                                const DID_PATTERN = /^(Repository DID: `)([^`]*)(`)$/m
+                                for (const dir of [stageDir, config.sourceDir, projectSourceDir].filter(Boolean)) {
+                                    const readmePath = join(dir!, 'README.md')
+                                    try {
+                                        const readmeContent = await readFile(readmePath, 'utf-8')
+                                        if (DID_PATTERN.test(readmeContent)) {
+                                            const updated = readmeContent.replace(DID_PATTERN, `$1${repoResult.did}$3`)
+                                            await writeFile(readmePath, updated, 'utf-8')
+                                            console.log(chalk.green(`  ✓ Updated Repository DID in ${readmePath}`))
+                                        }
+                                    } catch { }
+                                }
+
+                                // Store generator in the registry
+                                const registryRootDir = await this.HomeRegistry.rootDir
+                                const oiRegistryDir = join(registryRootDir, OI_REGISTRY_CAPSULE, repoResult.did)
+                                await mkdir(oiRegistryDir, { recursive: true })
+
+                                const repoGeneratorPath = join(stageDir, GENERATOR_FILE)
+                                const registryGeneratorPath = join(oiRegistryDir, 'GordianOpenIntegrity-generator.yaml')
+                                await cp(repoGeneratorPath, registryGeneratorPath)
+                                console.log(chalk.green(`  ✓ Generator stored at: ${registryGeneratorPath}`))
+
+                                // Write repo.json metadata to the registry
+                                const repoMeta: Record<string, any> = {
+                                    did: repoResult.did,
+                                    firstCommit: repoResult.commitHash,
+                                    firstCommitDate: new Date().toISOString(),
+                                    origin: originUri,
+                                }
+                                try {
+                                    const pkgPath = join(config.sourceDir, 'package.json')
+                                    const pkgContent = await readFile(pkgPath, 'utf-8')
+                                    const pkg = JSON.parse(pkgContent)
+                                    if (pkg.name) {
+                                        repoMeta.packageName = pkg.name
+                                    }
+                                } catch { }
+                                await writeFile(join(oiRegistryDir, 'repo.json'), JSON.stringify(repoMeta, null, 2), 'utf-8')
+                                console.log(chalk.green(`  ✓ Registry metadata stored at: ${join(oiRegistryDir, 'repo.json')}`))
+
+                                // Re-stage all files since OI added new files and update hasNewChanges
+                                hasNewChanges = await this.ProjectRepository.addAll({ rootDir: stageDir })
+                                if (!hasNewChanges) hasNewChanges = true  // OI commits created new state to push
+                            }
                         }
 
                         if (!dangerouslyResetMain && hasNewChanges) {
@@ -646,6 +772,16 @@ export async function capsule({
                             console.log(`New changes committed`)
                         } else {
                             console.log(`No new changes to commit`)
+                        }
+
+                        // Copy OI tracked files back to source directories so rsync preserves them
+                        if (oiEnabled) {
+                            const oiFiles = await this.GordianOpenIntegrity.getTrackedFiles()
+                            await copyFilesToSourceDirs({
+                                files: oiFiles,
+                                sourceDir: stageDir,
+                                targetDirs: [config.sourceDir, projectSourceDir],
+                            })
                         }
 
                         // Check if local is ahead of remote
