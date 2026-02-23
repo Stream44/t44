@@ -114,7 +114,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
     const result = await run({
         overrides: {
-            ['t44/caps/WorkspaceTest']: {
+            ['t44/caps/ProjectTest']: {
                 '#': {
                     testRootDir: options?.importMeta?.dir,
                     verbose: !!process.env.VERBOSE,
@@ -129,7 +129,8 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
     }, async (opts) => {
         return runHandler({
             ...opts,
-            ...(exportedApi || {})
+            ...(exportedApi || {}),
+            spineFilesystemRoot
         })
     })
 

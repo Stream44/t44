@@ -13,6 +13,15 @@ export async function capsule({
                         schema: {
                             type: 'object',
                             properties: {
+                                alwaysIgnore: {
+                                    type: 'array',
+                                    items: { type: 'string' },
+                                    description: 'Glob patterns to always exclude from publishing.'
+                                },
+                                providers: {
+                                    type: 'array',
+                                    description: 'Global publishing provider configurations applied to all repositories.'
+                                },
                                 repositories: {
                                     type: 'object',
                                     additionalProperties: {
@@ -21,6 +30,10 @@ export async function capsule({
                                             sourceDir: {
                                                 type: 'string',
                                                 description: 'Path to the repository source directory.'
+                                            },
+                                            activePublishingBranch: {
+                                                type: 'string',
+                                                description: 'Sticky branch for publishing. Set via --branch flag or directly in config. When set, pushes target this branch instead of main.'
                                             },
                                             providers: {
                                                 description: 'List of publishing provider configurations.',

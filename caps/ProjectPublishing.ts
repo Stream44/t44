@@ -1,9 +1,41 @@
 
 import { join, resolve } from 'path'
-import { $ } from 'bun'
-import { mkdir, access, readFile, writeFile } from 'fs/promises'
-import { constants } from 'fs'
+import { readFile, writeFile } from 'fs/promises'
 import chalk from 'chalk'
+
+// ── Provider Lifecycle Steps ─────────────────────────────────────────
+// Each provider capsule can implement any subset of these methods.
+// The orchestrator calls them in order for each repository's providers.
+//
+//   1. validateSource  — validate source dirs before sync
+//   2. prepareSource   — modify source before sync (e.g. npm private field)
+//   3. bump            — bump version (e.g. semver RC/release)
+//   4. ensureRemote    — ensure remote targets exist (e.g. create GitHub repo)
+//   5. prepare         — set up projection/stage dirs, store metadata on ctx
+//   6. tag             — tag repos with version
+//   7. push            — publish/push to provider
+//   8. afterPush       — post-push catalog updates
+//
+// Every method receives { config, ctx } where:
+//   config  = the provider's own config entry (with .capsule and .config)
+//   ctx     = shared publishingContext for the current repository
+//
+// ── Provider Tags ────────────────────────────────────────────────────
+// Each provider capsule declares a `tags` property (e.g. ['git'], ['npm'])
+// as part of its capsule definition. Tags classify what kind of publishing
+// a provider performs. The orchestrator queries `provider.tags` after
+// loading the capsule — tags are NOT stored in workspace config because
+// they are an intrinsic property of the capsule itself.
+//
+// When the user runs `t44 push --publish <filter>`, only providers whose
+// tags include the filter value will execute. For example:
+//   - `--publish git`  runs providers tagged 'git' (git-scm, github, OI, dco)
+//   - `--publish npm`  runs providers tagged 'npm' (npmjs)
+//   - no filter        runs all providers
+//
+// Providers without tags (e.g. sourcemint license, semver) are skipped
+// when a filter is active, which is correct because --publish mode only
+// pushes to external targets without re-validating or bumping.
 
 export async function capsule({
     encapsulate,
@@ -39,22 +71,6 @@ export async function capsule({
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/ProjectRepository'
                 },
-                SemverProvider: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/semver.org/ProjectPublishing'
-                },
-                GitRepository: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/git-scm.com/ProjectPublishing'
-                },
-                NpmRegistry: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/npmjs.com/ProjectPublishing'
-                },
-                GitHubRepository: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/github.com/ProjectPublishing'
-                },
                 ProjectRack: {
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/ProjectRack'
@@ -67,38 +83,96 @@ export async function capsule({
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/ProjectCatalogs'
                 },
-                RepositoryLicense: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/features/RepositoryLicense/ProjectPublishing'
-                },
                 run: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { args }: any): Promise<void> {
 
-                        const { projectSelector, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, yesSignoff } = args
+                        const { projectSelector, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch, yesSignoff } = args
 
-                        // Determine if this is a dry-run (default) or actual publish
+                        // ── Dynamic provider loader ──────────────────────────
+                        const providerCache = new Map<string, any>()
+                        const getProvider = async (uri: string) => {
+                            const cleanUri = uri.startsWith('#') ? uri.substring(1) : uri
+                            if (!providerCache.has(cleanUri)) {
+                                const { api } = await this.self.importCapsule({ uri: cleanUri })
+                                providerCache.set(cleanUri, api)
+                            }
+                            return providerCache.get(cleanUri)!
+                        }
+
+                        // ── Mode flags ───────────────────────────────────────
                         const isDryRun = !rc && !release && !bump && !publish
                         const shouldBumpVersions = rc || release || bump
 
-                        // Provider filter: when --publish <filter> is given, only matching providers run
+                        // ── Provider filter (tag-based) ────────────────────
+                        // When --publish <filter> is given, only providers whose
+                        // capsule exposes a matching `tags` property will run.
+                        // Tags are queried from the loaded capsule, not from config.
                         const publishFilter = typeof publish === 'string' ? publish : null
-                        const PROVIDER_FILTERS: Record<string, string[]> = {
-                            git: [
-                                't44/caps/providers/git-scm.com/ProjectPublishing',
-                                't44/caps/providers/github.com/ProjectPublishing',
-                            ],
-                        }
-                        const isProviderIncluded = (capsuleName: string): boolean => {
+                        const isProviderIncluded = async (providerConfig: any): Promise<boolean> => {
                             if (!publishFilter) return true
-                            const allowed = PROVIDER_FILTERS[publishFilter]
-                            if (!allowed) {
-                                console.log(`[t44] WARNING: Unknown provider filter '${publishFilter}', running all providers\n`)
-                                return true
-                            }
-                            return allowed.includes(capsuleName)
+                            const provider = await getProvider(providerConfig.capsule)
+                            const tags: string[] | undefined = provider.tags
+                            if (!tags || tags.length === 0) return false
+                            return tags.includes(publishFilter)
                         }
 
+                        // ── Config helpers ────────────────────────────────────
+                        const deepMerge = (base: any, override: any): any => {
+                            if (override === null || override === undefined) return base
+                            if (base === null || base === undefined) return override
+                            if (typeof base !== 'object' || typeof override !== 'object') return override
+                            if (Array.isArray(base) || Array.isArray(override)) return override
+                            const result: any = { ...base }
+                            for (const key of Object.keys(override)) {
+                                result[key] = deepMerge(base[key], override[key])
+                            }
+                            return result
+                        }
+
+                        const resolveRepoProviders = (repoConfig: any, globalProviders: any[]): any[] => {
+                            const repoProviders: any[] = Array.isArray(repoConfig.providers)
+                                ? repoConfig.providers
+                                : repoConfig.provider
+                                    ? [repoConfig.provider]
+                                    : []
+
+                            const globalDefaults = new Map<string, any>(
+                                globalProviders.map((p: any) => [p.capsule, p])
+                            )
+
+                            const merged: any[] = []
+                            const seen = new Set<string>()
+
+                            for (const repoProvider of repoProviders) {
+                                const capsuleName = repoProvider.capsule
+                                const globalDefault = globalDefaults.get(capsuleName)
+                                merged.push(globalDefault
+                                    ? { ...repoProvider, config: deepMerge(globalDefault.config, repoProvider.config) }
+                                    : repoProvider
+                                )
+                                seen.add(capsuleName)
+                            }
+
+                            for (const globalProvider of globalProviders) {
+                                if (!seen.has(globalProvider.capsule)) {
+                                    merged.unshift(globalProvider)
+                                }
+                            }
+
+                            return merged
+                        }
+
+                        // ── Publishing API (passed to providers) ─────────────
+                        const publishingApi = {
+                            getProjectionDir: (capsuleName: string) => join(
+                                this.WorkspaceConfig.workspaceRootDir,
+                                '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectPublishing',
+                                capsuleName.replace(/\//g, '~')
+                            ),
+                        }
+
+                        // ── Load config ───────────────────────────────────────
                         const repositoriesConfig = await this.$WorkspaceRepositories.config
 
                         if (!repositoriesConfig?.repositories) {
@@ -120,7 +194,28 @@ export async function capsule({
                             })
                         }
 
-                        // Show mode indicator
+                        // ── Branch validation ───────────────────────────────
+                        // --branch flag requires exactly one project to be selected
+                        if (branch && Object.keys(matchingRepositories).length > 1) {
+                            throw new Error(
+                                `--branch flag requires a single project to be selected, but ${Object.keys(matchingRepositories).length} repositories matched.\n` +
+                                `  Specify a projectSelector to narrow down to one project, then use --branch.`
+                            )
+                        }
+
+                        // ── Resolve per-repo effective branch ───────────────
+                        // Priority: CLI --branch > config.activePublishingBranch > undefined (defaults to 'main' downstream)
+                        const repoEffectiveBranches = new Map<string, string | undefined>()
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            if (branch) {
+                                repoEffectiveBranches.set(repoName, branch)
+                            } else {
+                                const configBranch = (repoConfig as any).activePublishingBranch
+                                repoEffectiveBranches.set(repoName, configBranch || undefined)
+                            }
+                        }
+
+                        // ── Show mode indicator ──────────────────────────────
                         if (isDryRun) {
                             console.log('[t44] DRY-RUN MODE: Going through all motions without irreversible operations\n')
                             console.log('[t44] Use --rc, --release, or --bump to perform actual operations\n')
@@ -134,39 +229,78 @@ export async function capsule({
                             }
                         }
 
-                        // Phase 0: Validate source directories (feature capsules that run before sync)
-                        console.log('[t44] Validating source directories ...\n')
-                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            const providers = Array.isArray((repoConfig as any).providers)
-                                ? (repoConfig as any).providers
-                                : (repoConfig as any).provider
-                                    ? [(repoConfig as any).provider]
-                                    : []
+                        const globalProviders: any[] = Array.isArray(repositoriesConfig.providers)
+                            ? repositoriesConfig.providers
+                            : []
 
-                            const projectSourceDir = join((repoConfig as any).sourceDir)
+                        // ── Helper: call a lifecycle step on all providers for a repo ──
+                        const callProvidersForRepo = async (
+                            step: string,
+                            repoName: string,
+                            repoConfig: any,
+                            repoSourceDir: string,
+                            ctx: any,
+                        ) => {
+                            const providers = resolveRepoProviders(repoConfig, globalProviders)
                             for (const providerConfig of providers) {
-                                const licenseConfig = providerConfig.config?.['#t44/caps/features/RepositoryLicense/ProjectPublishing']
-                                if (licenseConfig) {
-                                    await this.RepositoryLicense.validateSource({ sourceDir: projectSourceDir, config: licenseConfig })
-                                }
+                                if (!await isProviderIncluded(providerConfig)) continue
+
+                                const provider = await getProvider(providerConfig.capsule)
+                                if (typeof provider[step] !== 'function') continue
+
+                                await provider[step]({
+                                    config: providerConfig,
+                                    ctx,
+                                })
                             }
                         }
 
-                        // Phase 1: Copy source directories to stage location (git-tracked)
+                        // ══════════════════════════════════════════════════════
+                        // STEP 1: validateSource — validate source dirs before sync
+                        // ══════════════════════════════════════════════════════
+                        console.log('[t44] Validating source directories ...\n')
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const ctx = {
+                                repoName,
+                                repoConfig,
+                                repoSourceDir: join((repoConfig as any).sourceDir),
+                                options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                metadata: {} as Record<string, any>,
+                                alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
+                                publishingApi,
+                            }
+                            await callProvidersForRepo('validateSource', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // STEP 2: prepareSource — modify source before sync
+                        // ══════════════════════════════════════════════════════
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const ctx = {
+                                repoName,
+                                repoConfig,
+                                repoSourceDir: join((repoConfig as any).sourceDir),
+                                options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                metadata: {} as Record<string, any>,
+                                alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
+                                publishingApi,
+                            }
+                            await callProvidersForRepo('prepareSource', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Sync source directories to stage repos
+                        // ══════════════════════════════════════════════════════
                         console.log('[t44] Syncing source directories to stage repos ...\n')
                         const stageSourceDirs: Map<string, string> = new Map()
 
-                        const syncToStage = async (repoName: string, repoConfig: any) => {
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                             const projectSourceDir = join((repoConfig as any).sourceDir)
                             const repoSourceDir = await this.ProjectRepository.getStagePath({ repoUri: repoName })
 
-                            // Init git repo if not already
                             await this.ProjectRepository.init({ rootDir: repoSourceDir })
-
-                            // Reset working tree to last commit before copying
                             await this.ProjectRepository.reset({ rootDir: repoSourceDir })
 
-                            // Sync files from source to stage repo
                             const gitignorePath = join(projectSourceDir, '.gitignore')
                             await this.ProjectRepository.sync({
                                 rootDir: repoSourceDir,
@@ -176,60 +310,12 @@ export async function capsule({
                             })
 
                             stageSourceDirs.set(repoName, repoSourceDir)
-                            return repoSourceDir
+                            console.log(`=> Synced '${repoName}' to: ${repoSourceDir}\n`)
                         }
 
-                        // Update source package.json private field based on npm provider public config
-                        for (const [, repoConfig] of Object.entries(matchingRepositories)) {
-                            const providers = Array.isArray((repoConfig as any).providers)
-                                ? (repoConfig as any).providers
-                                : (repoConfig as any).provider
-                                    ? [(repoConfig as any).provider]
-                                    : []
-
-                            for (const providerConfig of providers) {
-                                if (providerConfig.capsule === 't44/caps/providers/npmjs.com/ProjectPublishing') {
-                                    const publicSetting = providerConfig.config?.PackageSettings?.public
-                                    if (publicSetting !== undefined) {
-                                        const projectSourceDir = join((repoConfig as any).sourceDir)
-                                        const sourcePackageJsonPath = join(projectSourceDir, 'package.json')
-                                        try {
-                                            const content = await readFile(sourcePackageJsonPath, 'utf-8')
-                                            const packageJson = JSON.parse(content)
-                                            const desiredPrivate = !publicSetting
-                                            if (packageJson.private !== desiredPrivate) {
-                                                packageJson.private = desiredPrivate
-                                                const indent = content.match(/^\{\s*\n([ \t]+)/)
-                                                const indentSize = indent ? indent[1].length : 2
-                                                await writeFile(sourcePackageJsonPath, JSON.stringify(packageJson, null, indentSize) + '\n', 'utf-8')
-                                                console.log(`  ✓ Updated ${sourcePackageJsonPath} private: ${desiredPrivate}`)
-                                            }
-                                        } catch { }
-                                    }
-                                }
-                            }
-                        }
-
-                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            console.log(`=> Syncing '${repoName}' ...`)
-                            const repoSourceDir = await syncToStage(repoName, repoConfig)
-                            console.log(`   Synced to: ${repoSourceDir}\n`)
-                        }
-
-                        // Helper to apply renames and resolve workspace dependencies on stage source dirs
-                        const applyRenamesAndFinalize = async () => {
-                            const matchingDirs = new Map(
-                                Object.keys(matchingRepositories)
-                                    .filter(name => stageSourceDirs.has(name))
-                                    .map(name => [name, stageSourceDirs.get(name)!])
-                            )
-                            await this.SemverProvider.rename({
-                                dirs: matchingDirs.values(),
-                                repos: Object.fromEntries(matchingDirs)
-                            })
-                        }
-
-                        // Phase 2: Detect source changes and bump versions
+                        // ══════════════════════════════════════════════════════
+                        // STEP 3: bump — bump versions via providers
+                        // ══════════════════════════════════════════════════════
                         const bumpedRepos = new Set<string>()
 
                         if (shouldBumpVersions) {
@@ -242,9 +328,7 @@ export async function capsule({
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = stageSourceDirs.get(repoName)!
 
-                                // Check if there are changes since last committed state
                                 const hasChanges = await this.ProjectRepository.hasChanges({ rootDir: repoSourceDir })
-
                                 if (!hasChanges) {
                                     console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
                                     continue
@@ -252,32 +336,52 @@ export async function capsule({
 
                                 console.log(`=> Bumping version for '${repoName}' ...\n`)
 
-                                const result = await this.SemverProvider.bump({
-                                    config: repoConfig,
-                                    options: { rc, release, bump }
-                                })
+                                const ctx = {
+                                    repoName,
+                                    repoConfig,
+                                    repoSourceDir,
+                                    options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                    metadata: {} as Record<string, any>,
+                                    bumpedRepos,
+                                    alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
+                                    publishingApi,
+                                }
+                                await callProvidersForRepo('bump', repoName, repoConfig, repoSourceDir, ctx)
 
-                                if (result?.newVersion) {
+                                if (ctx.metadata.bumped) {
                                     bumpedRepos.add(repoName)
-
-                                    // Update version in stage repo's package.json too
-                                    const stagePackageJsonPath = join(repoSourceDir, 'package.json')
-                                    const stageContent = await readFile(stagePackageJsonPath, 'utf-8')
-                                    const stagePackageJson = JSON.parse(stageContent)
-                                    stagePackageJson.version = result.newVersion
-                                    const indent = stageContent.match(/^\{\s*\n([ \t]+)/)
-                                    const indentSize = indent ? indent[1].length : 2
-                                    await writeFile(stagePackageJsonPath, JSON.stringify(stagePackageJson, null, indentSize) + '\n', 'utf-8')
                                 }
                             }
 
                             console.log('[t44] Version bump complete!\n')
                         }
 
-                        // Phase 3: Apply renames and resolve workspace dependencies
-                        await applyRenamesAndFinalize()
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Apply renames and resolve workspace deps
+                        // (cross-repo operation — not a per-provider lifecycle step)
+                        // ══════════════════════════════════════════════════════
+                        const matchingDirs = new Map(
+                            Object.keys(matchingRepositories)
+                                .filter(name => stageSourceDirs.has(name))
+                                .map(name => [name, stageSourceDirs.get(name)!])
+                        )
+                        const renameProviders = resolveRepoProviders(
+                            Object.values(matchingRepositories)[0] || {},
+                            globalProviders
+                        )
+                        for (const providerConfig of renameProviders) {
+                            const provider = await getProvider(providerConfig.capsule)
+                            if (typeof provider.rename === 'function') {
+                                await provider.rename({
+                                    dirs: matchingDirs.values(),
+                                    repos: Object.fromEntries(matchingDirs)
+                                })
+                            }
+                        }
 
-                        // Phase 4: Commit the final state for all repos that have changes
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Commit bumped versions to stage repos
+                        // ══════════════════════════════════════════════════════
                         if (shouldBumpVersions && !bump) {
                             for (const [repoName] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = stageSourceDirs.get(repoName)!
@@ -285,82 +389,59 @@ export async function capsule({
                             }
                         }
 
-                        // Helper to iterate providers with custom callback
-                        const forEachProvider = async (callback: (params: {
-                            repoName: string,
-                            repoConfig: any,
-                            providerConfig: any,
-                            capsuleName: string,
-                            repoSourceDir: string
-                        }) => Promise<void>) => {
-                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                                const providers = Array.isArray((repoConfig as any).providers)
-                                    ? (repoConfig as any).providers
-                                    : (repoConfig as any).provider
-                                        ? [(repoConfig as any).provider]
-                                        : []
-
-                                const repoSourceDir = stageSourceDirs.get(repoName)!
-                                for (const providerConfig of providers) {
-                                    const capsuleName = providerConfig.capsule
-                                    await callback({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir })
-                                }
-                            }
-                        }
-
-                        // Phase 4: Prepare all providers (copy from stage source to projection dirs)
-                        console.log('[t44] Preparing providers ...\n')
-                        const packageMetadata: Map<string, any> = new Map()
-                        const gitMetadata: Map<string, any> = new Map()
-
-                        await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                            if (!isProviderIncluded(capsuleName)) return
-                            if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing') {
-                                const metadata = await this.NpmRegistry.prepare({
-                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
-                                    projectionDir: join(
-                                        this.WorkspaceConfig.workspaceRootDir,
-                                        '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectPublishing/@t44.sh~t44~caps~providers~npmjs.com~ProjectPublishing'
-                                    ),
-                                    repoSourceDir
-                                })
-                                packageMetadata.set(repoName, metadata)
-                            } else if (capsuleName === 't44/caps/providers/github.com/ProjectPublishing') {
-                                // Ensure GitHub repo exists before git-scm.com tries to clone from it
-                                // This must run even in dry-run mode since git-scm.com prepare needs to clone the repo
-                                await this.GitHubRepository.push({ config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir } })
-                            } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing') {
-                                const metadata = await this.GitRepository.prepare({
-                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
-                                    projectionDir: join(
-                                        this.WorkspaceConfig.workspaceRootDir,
-                                        '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectPublishing/@t44.sh~t44~caps~providers~git-scm.com~ProjectPublishing'
-                                    )
-                                })
-                                gitMetadata.set(repoName, metadata)
-                            }
-                        })
-
-                        // Phase 5: Tag git repos with version (only bumped repos)
-                        if ((rc || release) && !isDryRun && !publish) {
-                            const taggedRepos = new Set<string>()
-                            await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                                if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing' && !taggedRepos.has(repoName)) {
-                                    if (!bumpedRepos.has(repoName)) {
-                                        console.log(`  ○ Skipping tag for '${repoName}' (not bumped)\n`)
-                                        taggedRepos.add(repoName)
-                                        return
-                                    }
-                                    const metadata = gitMetadata.get(repoName)
-                                    if (!metadata?.stageDir) return
-
-                                    await this.GitRepository.tag({ metadata, repoSourceDir })
-                                    taggedRepos.add(repoName)
-                                }
+                        // ══════════════════════════════════════════════════════
+                        // Build per-repo publishing contexts
+                        // ══════════════════════════════════════════════════════
+                        const repoContexts = new Map<string, any>()
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            repoContexts.set(repoName, {
+                                repoName,
+                                repoConfig,
+                                repoSourceDir: stageSourceDirs.get(repoName)!,
+                                options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                metadata: {} as Record<string, any>,
+                                bumpedRepos,
+                                alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
+                                publishingApi,
                             })
                         }
 
-                        // Phase 5.5: Sync selected project repos to project rack registry
+                        // ══════════════════════════════════════════════════════
+                        // STEP 4: ensureRemote — ensure remote targets exist
+                        // (e.g. create GitHub repos before git-scm tries to clone)
+                        // ══════════════════════════════════════════════════════
+                        console.log('[t44] Ensuring remote targets ...\n')
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const ctx = repoContexts.get(repoName)!
+                            await callProvidersForRepo('ensureRemote', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // STEP 5: prepare — set up projection/stage dirs
+                        // ══════════════════════════════════════════════════════
+                        console.log('[t44] Preparing providers ...\n')
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const ctx = repoContexts.get(repoName)!
+                            await callProvidersForRepo('prepare', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // STEP 6: tag — tag repos with version
+                        // ══════════════════════════════════════════════════════
+                        if ((rc || release) && !isDryRun && !publish) {
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                if (!bumpedRepos.has(repoName)) {
+                                    console.log(`  ○ Skipping tag for '${repoName}' (not bumped)\n`)
+                                    continue
+                                }
+                                const ctx = repoContexts.get(repoName)!
+                                await callProvidersForRepo('tag', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                            }
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Sync to project rack registry
+                        // ══════════════════════════════════════════════════════
                         const rackName = await this.ProjectRack.getRackName()
                         if (rackName) {
                             const registryRootDir = await this.HomeRegistry.rootDir
@@ -370,7 +451,6 @@ export async function capsule({
                             const workspaceRootDir = workspaceConfig?.rootDir
                             const projects = await this.WorkspaceProjects.list
 
-                            // Determine which projects have matching repositories
                             const matchingProjectNames = new Set<string>()
                             if (workspaceRootDir) {
                                 const { resolve, relative } = await import('path')
@@ -402,10 +482,8 @@ export async function capsule({
                                 const projectSourceDir = project.sourceDir
                                 const rackRepoDir = join(registryRootDir, rackStructDir, rackName, rackCapsuleDir, projectDid)
                                 try {
-                                    // Init bare repo in rack registry if needed
                                     await this.ProjectRepository.initBare({ rootDir: rackRepoDir })
 
-                                    // Add remote to source repo if not present, or update URL
                                     const remoteName = 't44/caps/ProjectRack'
                                     const hasRemote = await this.ProjectRepository.hasRemote({ rootDir: projectSourceDir, name: remoteName })
                                     if (!hasRemote) {
@@ -414,13 +492,11 @@ export async function capsule({
                                         await this.ProjectRepository.setRemoteUrl({ rootDir: projectSourceDir, name: remoteName, url: rackRepoDir })
                                     }
 
-                                    // Push source repo to rack registry
                                     const branch = await this.ProjectRepository.getBranch({ rootDir: projectSourceDir })
                                     await this.ProjectRepository.pushToRemote({ rootDir: projectSourceDir, remote: remoteName, branch, force: true })
 
                                     console.log(`   ✓ Synced '${projectName}' to rack`)
                                 } catch (error: any) {
-                                    const chalk = (await import('chalk')).default
                                     console.log(chalk.red(`\n   ✗ Failed to sync '${projectName}' to project rack '${rackName}'`))
                                     console.log(chalk.red(`     ${error.message || error}`))
                                     console.log(chalk.red(`[t44] ABORT: Rack sync failed. Not pushing to external providers.\n`))
@@ -431,99 +507,87 @@ export async function capsule({
                             console.log(`[t44] Rack sync complete.\n`)
                         }
 
-                        // Phase 6a: Push all providers
+                        // ══════════════════════════════════════════════════════
+                        // STEP 7: push — publish/push to providers
+                        // ══════════════════════════════════════════════════════
                         if (isDryRun) {
                             console.log('[t44] DRY-RUN: Skipping publishing (would publish packages here)\n')
+
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                console.log(`\n=> Processing repository '${repoName}' ...\n`)
+                                const providers = resolveRepoProviders(repoConfig as any, globalProviders)
+                                for (const providerConfig of providers) {
+                                    if (!await isProviderIncluded(providerConfig)) continue
+                                    console.log(`  -> DRY-RUN: Skipping provider '${providerConfig.capsule}'\n`)
+                                }
+                            }
                         } else {
                             console.log('[t44] Publishing packages ...\n')
-                        }
-                        const processedRepos = new Set<string>()
-                        await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName, repoSourceDir }) => {
-                            if (!isProviderIncluded(capsuleName)) return
-                            if (!processedRepos.has(repoName)) {
+
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                                 console.log(`\n=> Processing repository '${repoName}' ...\n`)
-                                processedRepos.add(repoName)
-                            }
+                                const ctx = repoContexts.get(repoName)!
+                                const providers = resolveRepoProviders(repoConfig as any, globalProviders)
 
-                            if (isDryRun) {
-                                console.log(`  -> DRY-RUN: Skipping provider '${capsuleName}'\n`)
-                            } else {
-                                console.log(`  -> Running provider '${capsuleName}' ...\n`)
-                            }
+                                for (const providerConfig of providers) {
+                                    if (!(await isProviderIncluded(providerConfig))) continue
 
-                            if (capsuleName === 't44/caps/providers/github.com/ProjectPublishing' && !isDryRun) {
-                                await this.GitHubRepository.push({
-                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir }
-                                })
-                            } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing' && !isDryRun) {
-                                await this.GitRepository.push({
-                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir, alwaysIgnore: repositoriesConfig.alwaysIgnore },
-                                    dangerouslyResetMain,
-                                    dangerouslyResetGordianOpenIntegrity,
-                                    yesSignoff,
-                                    metadata: gitMetadata.get(repoName),
-                                    projectSourceDir: (repoConfig as any).sourceDir
-                                })
-                            } else if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing' && !isDryRun) {
-                                await this.NpmRegistry.push({
-                                    config: { ...repoConfig, provider: providerConfig, sourceDir: repoSourceDir },
-                                    projectionDir: join(
-                                        this.WorkspaceConfig.workspaceRootDir,
-                                        '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectPublishing/@t44.sh~t44~caps~providers~npmjs.com~ProjectPublishing'
-                                    ),
-                                    metadata: packageMetadata.get(repoName)
-                                })
-                            }
+                                    const capsuleName = providerConfig.capsule
+                                    const provider = await getProvider(capsuleName)
+                                    if (typeof provider.push !== 'function') continue
 
-                            if (!isDryRun) {
-                                console.log(`  <- Provider '${capsuleName}' complete.\n`)
-                            }
-                        })
+                                    console.log(`  -> Running provider '${capsuleName}' ...\n`)
+                                    await provider.push({ config: providerConfig, ctx })
+                                    console.log(`  <- Provider '${capsuleName}' complete.\n`)
+                                }
 
-                        for (const repoName of processedRepos) {
-                            console.log(`<= Repository '${repoName}' processing complete.\n`)
+                                console.log(`<= Repository '${repoName}' processing complete.\n`)
+                            }
                         }
 
-                        // Phase 6b: Update catalogs after all pushes complete
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Persist activePublishingBranch to config
+                        // ══════════════════════════════════════════════════════
                         if (!isDryRun) {
-                            const catalogRepos = new Set<string>()
-                            await forEachProvider(async ({ repoName, repoConfig, providerConfig, capsuleName }) => {
-                                if (!isProviderIncluded(capsuleName)) return
-
-                                if (!catalogRepos.has(repoName)) {
-                                    catalogRepos.add(repoName)
-                                    const repoSourceDir_ = resolve((repoConfig as any).sourceDir)
-                                    const workspaceProjectName = await this.WorkspaceProjects.findProjectForPath({ targetPath: repoSourceDir_ }) || ''
-                                    await this.ProjectCatalogs.updateCatalogRepository({
-                                        repoName,
-                                        providerKey: '#' + capsule['#'],
-                                        providerData: {
-                                            sourceDir: repoSourceDir_,
-                                            workspaceProjectName,
-                                        },
-                                    })
+                            for (const [repoName] of Object.entries(matchingRepositories)) {
+                                const effectiveBranch = repoEffectiveBranches.get(repoName)
+                                if (branch && effectiveBranch) {
+                                    // --branch was explicitly used: persist to config
+                                    await this.$WorkspaceRepositories.setConfigValue(
+                                        ['repositories', repoName, 'activePublishingBranch'], effectiveBranch
+                                    )
+                                    console.log(`[t44] Stored activePublishingBranch '${effectiveBranch}' for '${repoName}'\n`)
                                 }
-
-                                if (capsuleName === 't44/caps/providers/github.com/ProjectPublishing') {
-                                    await this.GitHubRepository.afterPush({
-                                        repoName,
-                                        config: { ...repoConfig, provider: providerConfig, sourceDir: (repoConfig as any).sourceDir },
-                                    })
-                                } else if (capsuleName === 't44/caps/providers/git-scm.com/ProjectPublishing') {
-                                    await this.GitRepository.afterPush({
-                                        repoName,
-                                        config: { ...repoConfig, provider: providerConfig, sourceDir: (repoConfig as any).sourceDir },
-                                        metadata: gitMetadata.get(repoName),
-                                    })
-                                } else if (capsuleName === 't44/caps/providers/npmjs.com/ProjectPublishing') {
-                                    await this.NpmRegistry.afterPush({
-                                        repoName,
-                                        metadata: packageMetadata.get(repoName),
-                                    })
-                                }
-                            })
+                            }
                         }
 
+                        // ══════════════════════════════════════════════════════
+                        // STEP 8: afterPush — update catalogs
+                        // ══════════════════════════════════════════════════════
+                        if (!isDryRun) {
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                const ctx = repoContexts.get(repoName)!
+
+                                // Update base catalog entry once per repo
+                                const repoSourceDir_ = resolve((repoConfig as any).sourceDir)
+                                const workspaceProjectName = await this.WorkspaceProjects.findProjectForPath({ targetPath: repoSourceDir_ }) || ''
+                                await this.ProjectCatalogs.updateCatalogRepository({
+                                    repoName,
+                                    providerKey: '#' + capsule['#'],
+                                    providerData: {
+                                        sourceDir: repoSourceDir_,
+                                        workspaceProjectName,
+                                    },
+                                })
+
+                                // Call afterPush on all providers
+                                await callProvidersForRepo('afterPush', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                            }
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // Done
+                        // ══════════════════════════════════════════════════════
                         if (isDryRun) {
                             console.log('[t44] DRY-RUN complete! No irreversible operations were performed.')
                             console.log('[t44] To actually publish, use: t44 push --rc (for release candidate) or t44 push --release')

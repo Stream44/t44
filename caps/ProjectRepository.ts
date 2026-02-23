@@ -156,7 +156,8 @@ export async function capsule({
                 },
                 isAheadOfRemote: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, { rootDir }: { rootDir: string }): Promise<boolean> {
+                    value: async function (this: any, { rootDir, branch }: { rootDir: string, branch?: string }): Promise<boolean> {
+                        const branchName = branch || 'main'
                         const lsRemoteResult = await $`git ls-remote origin`.cwd(rootDir).quiet().nothrow()
                         const lsRemoteOutput = lsRemoteResult.text().trim()
 
@@ -165,7 +166,7 @@ export async function capsule({
                         }
 
                         const localHead = (await $`git rev-parse HEAD`.cwd(rootDir).quiet()).text().trim()
-                        const remoteHeadLine = lsRemoteOutput.split('\n').find((l: string) => l.includes('refs/heads/main'))
+                        const remoteHeadLine = lsRemoteOutput.split('\n').find((l: string) => l.includes(`refs/heads/${branchName}`))
                         const remoteHead = remoteHeadLine ? remoteHeadLine.split('\t')[0] : null
 
                         return !remoteHead || remoteHead !== localHead
@@ -173,14 +174,16 @@ export async function capsule({
                 },
                 push: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, { rootDir }: { rootDir: string }): Promise<void> {
-                        await $`git push -u origin main --tags`.cwd(rootDir)
+                    value: async function (this: any, { rootDir, branch }: { rootDir: string, branch?: string }): Promise<void> {
+                        const branchName = branch || 'main'
+                        await $`git push -u origin ${branchName} --tags`.cwd(rootDir)
                     }
                 },
                 forcePush: {
                     type: CapsulePropertyTypes.Function,
-                    value: async function (this: any, { rootDir }: { rootDir: string }): Promise<void> {
-                        await $`git push --force --tags`.cwd(rootDir)
+                    value: async function (this: any, { rootDir, branch }: { rootDir: string, branch?: string }): Promise<void> {
+                        const branchName = branch || 'main'
+                        await $`git push --force origin ${branchName} --tags`.cwd(rootDir)
                     }
                 },
                 squashAllCommits: {

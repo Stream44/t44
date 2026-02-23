@@ -12,7 +12,7 @@ const { test: { workbenchDir } } = await run(async ({ encapsulate, CapsuleProper
             '#': {
                 test: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceTest',
+                    value: 't44/caps/ProjectTest',
                     options: { '#': { bunTest, env: {} } }
                 },
             }
@@ -120,6 +120,27 @@ describe('standalone-rt multiple run() calls', () => {
 
         expect(result.a).toBe('capsule-a');
         expect(result.b).toBe('capsule-b');
+    });
+
+    it('should support run() with runFromSnapshot: true', async () => {
+        const result = await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
+            const spine = await encapsulate({
+                '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
+                    '#@stream44.studio/encapsulate/structs/Capsule': {},
+                    '#': {
+                        greeting: {
+                            type: CapsulePropertyTypes.Literal,
+                            value: 'hello-from-snapshot',
+                        },
+                    }
+                }
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test.snapshot' })
+            return { spine }
+        }, async ({ spine, apis }: any) => {
+            return apis[spine.capsuleSourceLineRef].greeting
+        }, { importMeta: import.meta, runFromSnapshot: true })
+
+        expect(result).toBe('hello-from-snapshot');
     });
 
     it('workbenchDir from top-level run() should still be available', () => {

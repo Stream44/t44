@@ -13,6 +13,16 @@ const shownDescriptions = new Set<string>()
 // Cache for in-flight getStoredConfig promises to prevent parallel decryption race conditions
 const storedConfigCache = new Map<string, Promise<Record<string, any> | null>>()
 
+// TODO: Remove after all workspaces have been migrated.
+// Maps new capsule name prefixes to old capsule name prefixes for credential file migration.
+const structRelocations: Record<string, string> = {
+    '@stream44.studio/t44-bunny.net/structs/': 't44/structs/providers/bunny.net/',
+    '@stream44.studio/t44-vercel.com/structs/': 't44/structs/providers/vercel.com/',
+    '@stream44.studio/t44-github.com/structs/': 't44/structs/providers/github.com/',
+    '@stream44.studio/t44-dynadot.com/structs/': 't44/structs/providers/dynadot.com/',
+    '@stream44.studio/t44-npmjs.com/structs/': 't44/structs/providers/npmjs.com/',
+}
+
 export async function capsule({
     encapsulate,
     CapsulePropertyTypes,
@@ -82,6 +92,10 @@ export async function capsule({
                     value: async function (this: any): Promise<Record<string, any> | null> {
                         const filepath = await this.getFilepath()
 
+                        // TODO: Remove after all workspaces have been migrated.
+                        // Migrate credential files from old struct paths to new package paths.
+                        await this._migrateCredentialFile(filepath)
+
                         // Use cached promise if already in-flight to prevent parallel decryption race conditions
                         if (storedConfigCache.has(filepath)) {
                             return storedConfigCache.get(filepath)!
@@ -96,6 +110,42 @@ export async function capsule({
                             // Clear cache after completion so next call gets fresh data
                             storedConfigCache.delete(filepath)
                         }
+                    }
+                },
+                // TODO: Remove after all workspaces have been migrated.
+                _migrateCredentialFile: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, newFilepath: string): Promise<void> {
+                        const { access, rename, mkdir } = await import('fs/promises')
+                        const { dirname } = await import('path')
+
+                        // Check if the new file already exists — nothing to migrate
+                        try {
+                            await access(newFilepath)
+                            return
+                        } catch { }
+
+                        // Determine if this capsule name matches a known relocation
+                        let oldCapsuleName: string | null = null
+                        for (const [newPrefix, oldPrefix] of Object.entries(structRelocations)) {
+                            if (this.capsuleName.startsWith(newPrefix)) {
+                                oldCapsuleName = oldPrefix + this.capsuleName.slice(newPrefix.length)
+                                break
+                            }
+                        }
+                        if (!oldCapsuleName) return
+
+                        // Build old filepath using the same pattern as getFilepath
+                        const oldConnectionType = oldCapsuleName.replace(/\//g, '~')
+                        const dir = dirname(newFilepath)
+                        const oldFilepath = join(dir, `${oldConnectionType}.json`)
+
+                        // Check if old file exists and move it
+                        try {
+                            await access(oldFilepath)
+                            await mkdir(dirname(newFilepath), { recursive: true })
+                            await rename(oldFilepath, newFilepath)
+                        } catch { }
                     }
                 },
                 _getStoredConfigImpl: {

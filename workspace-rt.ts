@@ -128,7 +128,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
                     workspaceRootDir
                 }
             },
-            ['t44/caps/WorkspaceTest']: {
+            ['t44/caps/ProjectTest']: {
                 '#': {
                     testRootDir: options?.importMeta?.dir
                 }

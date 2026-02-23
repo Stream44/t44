@@ -54,7 +54,7 @@ export async function capsule({
                 },
                 WorkspaceTest: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceTest'
+                    value: 't44/caps/ProjectTest'
                 },
                 prompt: {
                     type: CapsulePropertyTypes.Function,
@@ -180,8 +180,8 @@ export async function capsule({
 
                         // In non-interactive mode, throw error with MISSING_CREDENTIALS prefix
                         if (!process.stdin.isTTY && promptFactId) {
-                            // Extract provider from promptFactId (e.g., "t44/structs/providers/dynadot.com/WorkspaceConnectionConfig:apiKey")
-                            const providerMatch = promptFactId.match(/providers\/([^/]+)\//)
+                            // Extract provider from promptFactId
+                            const providerMatch = promptFactId.match(/patterns\/([^/]+)\//)
                             const provider = providerMatch ? providerMatch[1] : 'unknown'
                             const credentialName = message.replace(/:$/, '')
 

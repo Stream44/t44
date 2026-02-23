@@ -44,6 +44,9 @@ extends:
             optional: true
             description: Name of a top-level project directory in the workspace. If not specified, pushes all repositories.
         options:
+          branch:
+            description: Push to a specific branch instead of main. Creates the branch if it doesn't exist.
+            value: required
           bump:
             description: Bump package.json versions without tagging or publishing (dry-run mode)
           rc:
@@ -57,6 +60,9 @@ extends:
             description: Reset the git repository and force push to remote.
           dangerously-reset-gordian-open-integrity:
             description: Reset the Gordian Open Integrity trust root.
+          dangerously-squash-to-commit:
+            description: Soft-reset the repo to the specified commit, squashing all subsequent commits into the working tree, then re-commit and force push. Accepts full or short hash.
+            value: required
           yes-signoff:
             description: Automatically agree to DCO sign-off without prompting.
       deploy:

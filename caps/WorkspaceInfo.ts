@@ -33,15 +33,15 @@ export async function capsule({
                 },
                 Vercel: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/vercel.com/ProjectDeployment'
+                    value: '@stream44.studio/t44-vercel.com/caps/ProjectDeployment'
                 },
                 Bunny: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/bunny.net/ProjectDeployment'
+                    value: '@stream44.studio/t44-bunny.net/caps/StaticWebsite/ProjectDeployment'
                 },
                 Dynadot: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/dynadot.com/ProjectDeployment'
+                    value: '@stream44.studio/t44-dynadot.com/caps/ProjectDeployment'
                 },
                 ProjectCatalogs: {
                     type: CapsulePropertyTypes.Mapping,
@@ -183,7 +183,7 @@ export async function capsule({
 
                                                     const passive = !args?.now && !args?.full
 
-                                                    if (capsulePath === 't44/caps/providers/vercel.com/ProjectDeployment') {
+                                                    if (capsulePath === '@stream44.studio/t44-vercel.com/caps/ProjectDeployment') {
                                                         providerStatusPromises.push(this.Vercel.status({
                                                             config,
                                                             now: args?.now,
@@ -195,7 +195,7 @@ export async function capsule({
                                                             error: error.message,
                                                             rawDefinitionFilepaths: []
                                                         })))
-                                                    } else if (capsulePath === 't44/caps/providers/bunny.net/ProjectDeployment') {
+                                                    } else if (capsulePath === '@stream44.studio/t44-bunny.net/caps/StaticWebsite/ProjectDeployment') {
                                                         providerStatusPromises.push(this.Bunny.status({
                                                             config,
                                                             now: args?.now,
@@ -207,7 +207,7 @@ export async function capsule({
                                                             error: error.message,
                                                             rawDefinitionFilepaths: []
                                                         })))
-                                                    } else if (capsulePath === 't44/caps/providers/dynadot.com/ProjectDeployment') {
+                                                    } else if (capsulePath === '@stream44.studio/t44-dynadot.com/caps/ProjectDeployment') {
                                                         providerStatusPromises.push(this.Dynadot.status({
                                                             config,
                                                             now: args?.now,
@@ -334,7 +334,7 @@ export async function capsule({
                                         const vendors = providers
                                             .map((p: any) => {
                                                 const capsule = p.capsule || ''
-                                                const vendorMatch = capsule.match(/\/caps\/providers\/([^\/]+)\//)
+                                                const vendorMatch = capsule.match(/\/caps\/patterns\/([^\/]+)\//)
                                                 return vendorMatch ? vendorMatch[1] : 'unknown'
                                             })
                                             .filter((v: string, i: number, arr: string[]) => arr.indexOf(v) === i)
@@ -512,7 +512,7 @@ export async function capsule({
                                                 const aliasConfig = (tree.find((n: any) => n.alias === alias) || { config: {} }).config
                                                 const providers = aliasConfig.providers || (aliasConfig.provider ? [aliasConfig.provider] : [])
                                                 const vendorNames = providers.map((p: any) => {
-                                                    const match = (p.capsule || '').match(/\/caps\/providers\/([^\/]+)\//)
+                                                    const match = (p.capsule || '').match(/\/caps\/patterns\/([^\/]+)\//)
                                                     return match ? match[1] : 'unknown'
                                                 }).join(' & ')
                                                 console.log(chalk.gray('    ' + connector +

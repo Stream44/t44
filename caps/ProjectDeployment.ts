@@ -1,5 +1,19 @@
 
 import { join } from 'path'
+import chalk from 'chalk'
+
+// ── Provider Lifecycle ─────────────────────────────────────────────
+// Each deployment provider capsule exposes a standard interface:
+//
+//   deploy      — deploy the project to the provider
+//   deprovision — remove the project from the provider
+//   status      — query deployment status (supports passive/cached mode)
+//
+// Every method receives { config, ... } where config contains the
+// alias-level config with a .provider entry for the specific provider.
+//
+// The orchestrator dynamically loads provider capsules via importCapsule
+// so no hard-coded provider mappings are needed.
 
 export async function capsule({
     encapsulate,
@@ -24,18 +38,6 @@ export async function capsule({
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/WorkspacePrompt'
                 },
-                Vercel: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/vercel.com/ProjectDeployment'
-                },
-                Bunny: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/bunny.net/ProjectDeployment'
-                },
-                Dynadot: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/providers/dynadot.com/ProjectDeployment'
-                },
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
                     value: 't44/caps/WorkspaceProjects'
@@ -46,6 +48,63 @@ export async function capsule({
 
                         let { projectSelector, deprovision, yes } = args
 
+                        // ── Dynamic provider loader ──────────────────────────
+                        const providerCache = new Map<string, any>()
+                        const getProvider = async (uri: string) => {
+                            const cleanUri = uri.startsWith('#') ? uri.substring(1) : uri
+                            if (!providerCache.has(cleanUri)) {
+                                const { api } = await this.self.importCapsule({ uri: cleanUri })
+                                providerCache.set(cleanUri, api)
+                            }
+                            return providerCache.get(cleanUri)!
+                        }
+
+                        // ── Projection dir helper ────────────────────────────
+                        const workspaceConfig = await this.$WorkspaceConfig.config
+                        const getProjectionDir = (capsuleName: string) => join(
+                            workspaceConfig.rootDir,
+                            '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectDeployment',
+                            capsuleName.replace(/\//g, '~')
+                        )
+
+                        // ── Config helpers ────────────────────────────────────
+                        const resolveProviders = (aliasConfig: any): any[] =>
+                            aliasConfig.providers || (aliasConfig.provider ? [aliasConfig.provider] : [])
+
+                        const extractProviderName = (capsulePath: string): string => {
+                            const match = capsulePath.match(/t44-([^/]+)\//)
+                            return match ? match[1] : 'unknown'
+                        }
+
+                        // ── Helper: call a lifecycle method on all providers for an alias ──
+                        const callProvidersForAlias = async (
+                            step: 'deploy' | 'deprovision' | 'status',
+                            aliasConfig: any,
+                            ctx: { alias: string; projectName: string },
+                        ) => {
+                            const providers = resolveProviders(aliasConfig)
+                            for (const providerConfig of providers) {
+                                const provider = await getProvider(providerConfig.capsule)
+                                if (typeof provider[step] !== 'function') continue
+
+                                const config = { ...aliasConfig, provider: providerConfig }
+
+                                if (step === 'deploy') {
+                                    await provider.deploy({
+                                        alias: ctx.alias,
+                                        config,
+                                        projectionDir: getProjectionDir(providerConfig.capsule),
+                                        workspaceProjectName: ctx.projectName,
+                                    })
+                                } else if (step === 'deprovision') {
+                                    await provider.deprovision({ config })
+                                }
+                            }
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // STEP 1: Load config & resolve matching deployments
+                        // ══════════════════════════════════════════════════════
                         const deploymentConfig = await this.$ProjectDeploymentConfig.config
 
                         if (!deploymentConfig?.deployments) {
@@ -55,119 +114,15 @@ export async function capsule({
                         let matchingDeployments: Record<string, any> = {}
 
                         if (!projectSelector) {
-                            // Show interactive project selection
-                            const chalk = (await import('chalk')).default
-                            const allProjects = Object.keys(deploymentConfig.deployments)
-
-                            if (allProjects.length === 0) {
-                                throw new Error('No deployments configured')
-                            }
-
-                            // Display heading
-                            const actionText = deprovision ? 'deprovision' : 'deploy'
-                            console.log(chalk.cyan(`\nPick a project to ${actionText}. You will be asked for necessary credentials as needed.\n`))
-
-                            // Build choices with deployment status
-                            const choices: Array<{ name: string; value: string }> = []
-
-                            for (const projectName of allProjects) {
-                                const projectAliases = deploymentConfig.deployments[projectName]
-                                const aliasNames = Object.keys(projectAliases)
-                                const firstAlias = aliasNames[0]
-                                const aliasConfig = projectAliases[firstAlias]
-
-                                // Support both 'provider' (single) and 'providers' (array) patterns
-                                const providers = aliasConfig.providers || (aliasConfig.provider ? [aliasConfig.provider] : [])
-
-                                // Extract provider name from the first provider's capsule path
-                                const firstCapsulePath = providers[0]?.capsule || ''
-                                const providerMatch = firstCapsulePath.match(/providers\/([^/]+)\//)
-                                const providerName = providerMatch ? providerMatch[1] : 'unknown'
-
-                                // Check deployment status across all providers that support it
-                                let statusText = ''
-                                let isDeployed = false
-                                try {
-                                    let status: any
-                                    for (const providerConfig of providers) {
-                                        const capsulePath = providerConfig.capsule || ''
-                                        const config = { ...aliasConfig, provider: providerConfig }
-                                        if (capsulePath.includes('vercel.com')) {
-                                            status = await this.Vercel.status({ config, passive: true })
-                                        } else if (capsulePath.includes('bunny.net')) {
-                                            status = await this.Bunny.status({ config, passive: true })
-                                        }
-                                        // Use the first provider that returns a valid status
-                                        if (status && !status.error) break
-                                    }
-
-                                    if (!status || status?.error) {
-                                        statusText = chalk.gray('not deployed')
-                                    } else if (status?.status === 'READY') {
-                                        isDeployed = true
-                                        // Calculate deployment duration
-                                        let durationText = ''
-                                        if (status.createdAt || status.updatedAt) {
-                                            const deployedDate = new Date(status.updatedAt || status.createdAt)
-                                            const now = new Date()
-                                            const diffMs = now.getTime() - deployedDate.getTime()
-                                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-                                            const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-                                            const diffMinutes = Math.floor(diffMs / (1000 * 60))
-
-                                            if (diffDays > 0) {
-                                                durationText = chalk.gray(` (${diffDays}d ago)`)
-                                            } else if (diffHours > 0) {
-                                                durationText = chalk.gray(` (${diffHours}h ago)`)
-                                            } else if (diffMinutes > 0) {
-                                                durationText = chalk.gray(` (${diffMinutes}m ago)`)
-                                            } else {
-                                                durationText = chalk.gray(' (just now)')
-                                            }
-                                        }
-                                        statusText = chalk.green('deployed') + durationText
-                                    } else if (status?.status) {
-                                        statusText = chalk.gray(status.status.toLowerCase())
-                                    } else {
-                                        statusText = chalk.gray('not deployed')
-                                    }
-                                } catch {
-                                    statusText = chalk.gray('not deployed')
-                                }
-
-                                // When deprovisioning, only show deployed projects
-                                if (deprovision && !isDeployed) continue
-
-                                const providerText = chalk.cyan(`[${providerName}]`)
-                                const aliasText = chalk.gray(`[${aliasNames.join(', ')}]`)
-                                const projectText = chalk.white(projectName)
-
-                                choices.push({
-                                    name: `${projectText}  ${providerText}  ${aliasText}  ${statusText}`,
-                                    value: projectName
-                                })
-                            }
-
-                            if (choices.length === 0) {
-                                console.log(chalk.gray('No deployed projects found.\n'))
-                                return
-                            }
-
-                            try {
-                                const selectedProject = await this.WorkspacePrompt.select({
-                                    message: `Select a project:`,
-                                    choices
-                                })
-
-                                // Set the selected project as workspaceProject for further processing
-                                matchingDeployments[selectedProject] = deploymentConfig.deployments[selectedProject]
-                            } catch (error: any) {
-                                if (error.message?.includes('SIGINT') || error.message?.includes('force closed')) {
-                                    console.log(chalk.red('\nABORTED\n'))
-                                    return
-                                }
-                                throw error
-                            }
+                            const selected = await selectProjectInteractively.call(this, {
+                                deploymentConfig,
+                                deprovision,
+                                getProvider,
+                                resolveProviders,
+                                extractProviderName,
+                            })
+                            if (!selected) return
+                            matchingDeployments = selected
                         } else {
                             matchingDeployments = await this.WorkspaceProjects.resolveMatchingDeployments({
                                 workspaceProject: projectSelector,
@@ -175,144 +130,41 @@ export async function capsule({
                             })
                         }
 
-                        // Deploy or deprovision each matching project
-                        for (const [projectName, deploymentConfig] of Object.entries(matchingDeployments)) {
+                        // ══════════════════════════════════════════════════════
+                        // STEP 2: Deploy or deprovision each matching project
+                        // ══════════════════════════════════════════════════════
+                        for (const [projectName, projectConfig] of Object.entries(matchingDeployments)) {
+                            const actionText = deprovision ? 'Deprovisioning' : 'Deploying'
+                            console.log(`\n=> ${actionText} project '${projectName}' ...\n`)
+
+                            const orderedAliases = orderAliasesByDependencies(projectConfig)
+
+                            // ── Deprovision confirmation ─────────────────────
                             if (deprovision) {
-                                console.log(`\n=> Deprovisioning project '${projectName}' ...\n`)
-                            } else {
-                                console.log(`\n=> Deploying project '${projectName}' ...\n`)
-                            }
-
-                            const orderedAliases = orderAliasesByDependencies(deploymentConfig)
-
-                            // For deprovision, confirm once at the project level
-                            if (deprovision && !yes) {
-                                const chalk = (await import('chalk')).default
-                                const aliasNames = orderedAliases.join(', ')
-                                console.log(chalk.red(`\n⚠️  WARNING: You are about to DELETE all deployments for project '${projectName}':\n`))
-                                console.log(chalk.red(`   Aliases: ${aliasNames}`))
-                                console.log(chalk.red(`\n   ⚠️  THIS ACTION IS IRREVERSIBLE ⚠️\n`))
-
-                                try {
-                                    const confirmation = await this.WorkspacePrompt.input({
-                                        message: chalk.red(`To confirm deletion, type the project name exactly: "${projectName}"`),
-                                        defaultValue: ''
-                                    })
-
-                                    if (confirmation !== projectName) {
-                                        console.log(chalk.red('\n⚠️  ABORTED\n'))
-                                        continue
-                                    }
-
-                                    console.log(chalk.red(`\n✓ Confirmation received. Proceeding with deprovisioning...\n`))
-                                } catch (error: any) {
-                                    if (error.message?.includes('SIGINT') || error.message?.includes('force closed')) {
-                                        console.log(chalk.red('\n\nABORTED\n'))
-                                        return
-                                    }
-                                    throw error
+                                if (!yes) {
+                                    const confirmed = await confirmDeprovision.call(this, { projectName, orderedAliases })
+                                    if (confirmed === 'skip') continue
+                                    if (confirmed === 'abort') return
+                                } else {
+                                    console.log(chalk.red(`\n✓ Auto-confirmed with --yes flag. Proceeding with deprovisioning...\n`))
                                 }
-                            } else if (deprovision && yes) {
-                                const chalk = (await import('chalk')).default
-                                console.log(chalk.red(`\n✓ Auto-confirmed with --yes flag. Proceeding with deprovisioning...\n`))
                             }
 
                             // For deprovision, reverse the order to handle dependencies correctly
-                            const aliasesToProcess = deprovision ? orderedAliases.reverse() : orderedAliases
+                            const aliasesToProcess = deprovision ? [...orderedAliases].reverse() : orderedAliases
 
+                            // ── Process each alias ───────────────────────────
                             for (const alias of aliasesToProcess) {
-                                if (deprovision) {
-                                    console.log(`\n=> Deprovisioning provider project alias '${alias}' for workspace project '${projectName}' ...\n`)
-                                } else {
-                                    console.log(`\n=> Running deployment of provider project alias '${alias}' for workspace project '${projectName}' ...\n`)
-                                }
+                                const step = deprovision ? 'deprovision' : 'deploy'
+                                const stepText = deprovision ? 'Deprovisioning' : 'Deploying'
+                                console.log(`\n=> ${stepText} provider project alias '${alias}' for workspace project '${projectName}' ...\n`)
 
-                                const aliasConfig = deploymentConfig[alias]
+                                await callProvidersForAlias(step, projectConfig[alias], { alias, projectName })
 
-                                // Support both 'provider' (single) and 'providers' (array) patterns
-                                const providers = aliasConfig.providers || (aliasConfig.provider ? [aliasConfig.provider] : [])
-
-                                for (const providerConfig of providers) {
-                                    const capsulePath = providerConfig.capsule
-
-                                    // Build config object that matches expected structure
-                                    const config = {
-                                        ...aliasConfig,
-                                        provider: providerConfig
-                                    }
-
-                                    if (capsulePath === 't44/caps/providers/vercel.com/ProjectDeployment') {
-
-                                        if (deprovision) {
-                                            // Check if project exists before attempting to deprovision
-                                            const status = await this.Vercel.status({ config })
-
-                                            if (status.error) {
-                                                console.log(`Project not found on provider. Skipping deprovisioning.`)
-                                                continue
-                                            }
-
-                                            await this.Vercel.deprovision({ config })
-                                        } else {
-                                            await this.Vercel.deploy({
-                                                alias,
-                                                config,
-                                                projectionDir: join(
-                                                    (await this.$WorkspaceConfig.config).rootDir,
-                                                    '.~o/workspace.foundation/o/vercel.com'
-                                                )
-                                            })
-                                        }
-
-                                    } else if (capsulePath === 't44/caps/providers/bunny.net/ProjectDeployment') {
-
-                                        if (deprovision) {
-                                            await this.Bunny.deprovision({ config })
-                                        } else {
-                                            await this.Bunny.deploy({
-                                                alias,
-                                                config,
-                                                projectionDir: join(
-                                                    (await this.$WorkspaceConfig.config).rootDir,
-                                                    '.~o/workspace.foundation/o/bunny.net'
-                                                ),
-                                                workspaceProjectName: projectName
-                                            })
-                                        }
-
-                                    } else if (capsulePath === 't44/caps/providers/dynadot.com/ProjectDeployment') {
-
-                                        if (deprovision) {
-                                            await this.Dynadot.deprovision({ config })
-                                        } else {
-                                            await this.Dynadot.deploy({
-                                                alias,
-                                                config,
-                                                projectionDir: join(
-                                                    (await this.$WorkspaceConfig.config).rootDir,
-                                                    '.~o/workspace.foundation/o/dynadot.com'
-                                                ),
-                                                workspaceProjectName: projectName
-                                            })
-                                        }
-
-                                    } else {
-                                        throw new Error(`Unsupported capsule '${capsulePath}'!`)
-                                    }
-                                }
-
-                                if (deprovision) {
-                                    console.log(`\n<= Deprovisioning of provider project alias '${alias}' for workspace project '${projectName}' done.\n`)
-                                } else {
-                                    console.log(`\n<= Deployment of provider project alias '${alias}' for workspace project '${projectName}' done.\n`)
-                                }
+                                console.log(`\n<= ${stepText} of provider project alias '${alias}' for workspace project '${projectName}' done.\n`)
                             }
 
-                            if (deprovision) {
-                                console.log(`\n<= Project '${projectName}' deprovisioning complete.\n`)
-                            } else {
-                                console.log(`\n<= Project '${projectName}' deployment complete.\n`)
-                            }
+                            console.log(`\n<= Project '${projectName}' ${deprovision ? 'deprovisioning' : 'deployment'} complete.\n`)
                         }
                     }
                 }
@@ -325,6 +177,146 @@ export async function capsule({
     })
 }
 capsule['#'] = 't44/caps/ProjectDeployment'
+
+
+// ── Interactive project selection ────────────────────────────────────
+async function selectProjectInteractively(
+    this: any,
+    { deploymentConfig, deprovision, getProvider, resolveProviders, extractProviderName }: {
+        deploymentConfig: any
+        deprovision: boolean
+        getProvider: (uri: string) => Promise<any>
+        resolveProviders: (aliasConfig: any) => any[]
+        extractProviderName: (capsulePath: string) => string
+    }
+): Promise<Record<string, any> | null> {
+    const allProjects = Object.keys(deploymentConfig.deployments)
+
+    if (allProjects.length === 0) {
+        throw new Error('No deployments configured')
+    }
+
+    const actionText = deprovision ? 'deprovision' : 'deploy'
+    console.log(chalk.cyan(`\nPick a project to ${actionText}. You will be asked for necessary credentials as needed.\n`))
+
+    const choices: Array<{ name: string; value: string }> = []
+
+    for (const projectName of allProjects) {
+        const projectAliases = deploymentConfig.deployments[projectName]
+        const aliasNames = Object.keys(projectAliases)
+        const firstAlias = aliasNames[0]
+        const aliasConfig = projectAliases[firstAlias]
+        const providers = resolveProviders(aliasConfig)
+
+        const providerName = extractProviderName(providers[0]?.capsule || '')
+
+        // Check deployment status across all providers that support it
+        let statusText = ''
+        let isDeployed = false
+        try {
+            let status: any
+            for (const providerConfig of providers) {
+                const config = { ...aliasConfig, provider: providerConfig }
+                const provider = await getProvider(providerConfig.capsule)
+                if (typeof provider.status === 'function') {
+                    status = await provider.status({ config, passive: true })
+                }
+                if (status && !status.error) break
+            }
+
+            if (!status || status?.error) {
+                statusText = chalk.gray('not deployed')
+            } else if (status?.status === 'READY') {
+                isDeployed = true
+                statusText = chalk.green('deployed') + formatDuration(status)
+            } else if (status?.status) {
+                statusText = chalk.gray(status.status.toLowerCase())
+            } else {
+                statusText = chalk.gray('not deployed')
+            }
+        } catch {
+            statusText = chalk.gray('not deployed')
+        }
+
+        // When deprovisioning, only show deployed projects
+        if (deprovision && !isDeployed) continue
+
+        choices.push({
+            name: `${chalk.white(projectName)}  ${chalk.cyan(`[${providerName}]`)}  ${chalk.gray(`[${aliasNames.join(', ')}]`)}  ${statusText}`,
+            value: projectName
+        })
+    }
+
+    if (choices.length === 0) {
+        console.log(chalk.gray('No deployed projects found.\n'))
+        return null
+    }
+
+    try {
+        const selectedProject = await this.WorkspacePrompt.select({
+            message: `Select a project:`,
+            choices
+        })
+        return { [selectedProject]: deploymentConfig.deployments[selectedProject] }
+    } catch (error: any) {
+        if (error.message?.includes('SIGINT') || error.message?.includes('force closed')) {
+            console.log(chalk.red('\nABORTED\n'))
+            return null
+        }
+        throw error
+    }
+}
+
+
+// ── Deprovision confirmation prompt ──────────────────────────────────
+async function confirmDeprovision(
+    this: any,
+    { projectName, orderedAliases }: { projectName: string; orderedAliases: string[] }
+): Promise<'ok' | 'skip' | 'abort'> {
+    const aliasNames = orderedAliases.join(', ')
+    console.log(chalk.red(`\n⚠️  WARNING: You are about to DELETE all deployments for project '${projectName}':\n`))
+    console.log(chalk.red(`   Aliases: ${aliasNames}`))
+    console.log(chalk.red(`\n   ⚠️  THIS ACTION IS IRREVERSIBLE ⚠️\n`))
+
+    try {
+        const confirmation = await this.WorkspacePrompt.input({
+            message: chalk.red(`To confirm deletion, type the project name exactly: "${projectName}"`),
+            defaultValue: ''
+        })
+
+        if (confirmation !== projectName) {
+            console.log(chalk.red('\n⚠️  ABORTED\n'))
+            return 'skip'
+        }
+
+        console.log(chalk.red(`\n✓ Confirmation received. Proceeding with deprovisioning...\n`))
+        return 'ok'
+    } catch (error: any) {
+        if (error.message?.includes('SIGINT') || error.message?.includes('force closed')) {
+            console.log(chalk.red('\n\nABORTED\n'))
+            return 'abort'
+        }
+        throw error
+    }
+}
+
+
+// ── Duration formatting for status display ───────────────────────────
+function formatDuration(status: any): string {
+    if (!status.createdAt && !status.updatedAt) return ''
+
+    const deployedDate = new Date(status.updatedAt || status.createdAt)
+    const now = new Date()
+    const diffMs = now.getTime() - deployedDate.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffMinutes = Math.floor(diffMs / (1000 * 60))
+
+    if (diffDays > 0) return chalk.gray(` (${diffDays}d ago)`)
+    if (diffHours > 0) return chalk.gray(` (${diffHours}h ago)`)
+    if (diffMinutes > 0) return chalk.gray(` (${diffMinutes}m ago)`)
+    return chalk.gray(' (just now)')
+}
 
 
 function orderAliasesByDependencies(deploymentConfig: Record<string, any>): string[] {

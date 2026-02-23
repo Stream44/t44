@@ -1,8 +1,12 @@
-⚠️ **WARNING:** This repository may get squashed and force-pushed if the [GordianOpenIntegrity](https://github.com/Stream44/t44-blockchaincommons.com) implementation must change in incompatible ways. Keep your diffs until the **GordianOpenIntegrity** system is stable.
+<table>
+  <tr>
+    <td><a href="https://Stream44.Studio"><img src=".o/stream44.studio/assets/Icon-v1.svg" width="42" height="42"></a></td>
+    <td><strong><a href="https://Stream44.Studio">Stream44 Studio</a></strong><br/>Open Development Project</td>
+    <td>Preview release for community feedback.<br/>Get in touch on <a href="https://discord.gg/9eBcQXEJAN">discord</a>.</td>
+  </tr>
+</table>
 
-🔷 **Open Development Project:** The implementation is a preview release for community feedback.
-
-⚠️ **Disclaimer:** Under active development. Code has not been audited, APIs and interfaces are subject to change.
+⚠️ **Disclaimer:** Under active development. Code has not been audited. APIs and interfaces are subject to change!
 
 Terminal44 Workspace Foundation [![Tests](https://github.com/Stream44/t44/actions/workflows/test.yaml/badge.svg)](https://github.com/Stream44/t44/actions/workflows/test.yaml?query=branch%3Amain)
 ===
@@ -182,4 +186,4 @@ Repository DID: `did:repo:adba68602ba0b2eb0ea86e7b24427cf8fa9ab286`
   </tr>
 </table>
 
-(c) 2026 [Christoph.diy](https://christoph.diy) • Code: `LGPL` • Text: [GNU Free Documentation License](https://www.gnu.org/licenses/fdl-1.3.txt) • Created with [Stream44.Studio](https://Stream44.Studio)
+(c) 2026 [Christoph.diy](https://christoph.diy) • Code: [LGPL](./LICENSE.txt) • Text: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) • Created with [Stream44.Studio](https://Stream44.Studio)
