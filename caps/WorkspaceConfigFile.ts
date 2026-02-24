@@ -343,8 +343,36 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
         let rawContent = await readFile(absolutePath, 'utf-8')
         const configDir = join(absolutePath, '..')
 
+        const isTrace = process.argv.includes('--trace')
+        if (isTrace) {
+            console.log(chalk.gray(`  [trace] Loading YAML config: ${absolutePath}`))
+        }
+
         // Check if file is already schema-wrapped or raw
-        const rawParsed = yaml.load(rawContent) as any
+        let rawParsed: any
+        try {
+            rawParsed = yaml.load(rawContent) as any
+        } catch (yamlError: any) {
+            console.error('')
+            console.error(chalk.bgRed.white.bold('  YAML Parse Error  '))
+            console.error('')
+            console.error(chalk.red.bold('  File: ') + chalk.yellow(absolutePath))
+            if (referencedFrom) {
+                console.error(chalk.red.bold('  Referenced from: ') + chalk.yellow(referencedFrom))
+            }
+            if (yamlError.mark) {
+                console.error(chalk.red.bold('  Line: ') + chalk.white(yamlError.mark.line + 1) + chalk.red.bold('  Column: ') + chalk.white(yamlError.mark.column + 1))
+            }
+            if (yamlError.reason) {
+                console.error(chalk.red.bold('  Reason: ') + chalk.white(yamlError.reason))
+            }
+            if (yamlError.mark?.snippet) {
+                console.error('')
+                console.error(chalk.gray('  ' + yamlError.mark.snippet.split('\n').join('\n  ')))
+            }
+            console.error('')
+            process.exit(1)
+        }
         let isWrapped = !!(rawParsed && rawParsed.$schema)
         let needsRewrite = false
 
@@ -433,7 +461,30 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
             configContent = configContent.replace(fullMatch, resolvedPath)
         }
 
-        let config = yaml.load(configContent) as any
+        let config: any
+        try {
+            config = yaml.load(configContent) as any
+        } catch (yamlError: any) {
+            console.error('')
+            console.error(chalk.bgRed.white.bold('  YAML Parse Error (after variable substitution)  '))
+            console.error('')
+            console.error(chalk.red.bold('  File: ') + chalk.yellow(absolutePath))
+            if (referencedFrom) {
+                console.error(chalk.red.bold('  Referenced from: ') + chalk.yellow(referencedFrom))
+            }
+            if (yamlError.mark) {
+                console.error(chalk.red.bold('  Line: ') + chalk.white(yamlError.mark.line + 1) + chalk.red.bold('  Column: ') + chalk.white(yamlError.mark.column + 1))
+            }
+            if (yamlError.reason) {
+                console.error(chalk.red.bold('  Reason: ') + chalk.white(yamlError.reason))
+            }
+            if (yamlError.mark?.snippet) {
+                console.error('')
+                console.error(chalk.gray('  ' + yamlError.mark.snippet.split('\n').join('\n  ')))
+            }
+            console.error('')
+            process.exit(1)
+        }
 
         // Strip $schema for processing
         if (config && config.$schema) {
