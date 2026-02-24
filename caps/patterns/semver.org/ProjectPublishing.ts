@@ -1,6 +1,6 @@
 
-import { join } from 'path'
-import { readFile, writeFile } from 'fs/promises'
+import { join, dirname } from 'path'
+import { readFile, writeFile, access } from 'fs/promises'
 import glob from 'fast-glob'
 import chalk from 'chalk'
 
@@ -134,6 +134,31 @@ export async function capsule({
                                         }
                                     }
                                 }
+                            }
+
+                            // Clean up tsconfig.json extends paths that don't resolve in the published package
+                            console.log('[t44] Cleaning up tsconfig.json extends paths ...\n')
+                            for (const [repoName, repoSourceDir] of Object.entries(repos)) {
+                                await cleanupTsconfigExtends(join(repoSourceDir as string, 'tsconfig.json'))
+
+                                // Follow workspaces to find sub-workspace tsconfig.json files
+                                const pkgPath = join(repoSourceDir as string, 'package.json')
+                                try {
+                                    const pkgContent = await readFile(pkgPath, 'utf-8')
+                                    const pkg = JSON.parse(pkgContent)
+                                    const workspaces: string[] = pkg.workspaces || []
+                                    if (workspaces.length > 0) {
+                                        const tsconfigPatterns = workspaces.map(ws => join(ws, 'tsconfig.json'))
+                                        const tsconfigPaths = await glob(tsconfigPatterns, {
+                                            cwd: repoSourceDir as string,
+                                            absolute: true,
+                                            onlyFiles: true,
+                                        })
+                                        for (const tsconfigPath of tsconfigPaths) {
+                                            await cleanupTsconfigExtends(tsconfigPath)
+                                        }
+                                    }
+                                } catch { }
                             }
                         }
                     }
@@ -335,5 +360,31 @@ async function updateWorkspaceDependencies(
 
             packageJson[depField] = updatedDeps
         }
+    }
+}
+
+async function cleanupTsconfigExtends(tsconfigPath: string): Promise<void> {
+    try {
+        const content = await readFile(tsconfigPath, 'utf-8')
+        const tsconfig = JSON.parse(content)
+
+        if (!tsconfig.extends) return
+
+        // Resolve the extends path relative to the tsconfig.json directory
+        const tsconfigDir = dirname(tsconfigPath)
+        const extendsPath = join(tsconfigDir, tsconfig.extends)
+
+        try {
+            await access(extendsPath)
+            // Path exists — keep it
+        } catch {
+            // Path does not exist — remove the extends field
+            delete tsconfig.extends
+            const indent = detectIndent(content)
+            await writeFile(tsconfigPath, JSON.stringify(tsconfig, null, indent) + '\n', 'utf-8')
+            console.log(chalk.green(`  ✓ Removed invalid extends from ${tsconfigPath}\n`))
+        }
+    } catch {
+        // tsconfig.json doesn't exist or isn't valid JSON — skip
     }
 }
