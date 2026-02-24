@@ -105,6 +105,35 @@ export async function capsule({
                                     await writeFile(packageJsonPath, updatedContent, 'utf-8')
                                     console.log(chalk.green(`  ✓ Updated workspace dependencies in ${packageJsonPath}\n`))
                                 }
+
+                                // Follow workspaces declarations to update sub-workspace package.json files
+                                const workspaces: string[] = packageJson.workspaces || []
+                                if (workspaces.length > 0) {
+                                    const workspacePatterns = workspaces.map(ws => join(ws, 'package.json'))
+                                    const subPackageJsonPaths = await glob(workspacePatterns, {
+                                        cwd: repoSourceDir as string,
+                                        absolute: true,
+                                        onlyFiles: true,
+                                    })
+
+                                    for (const subPkgPath of subPackageJsonPaths) {
+                                        try {
+                                            const subContent = await readFile(subPkgPath, 'utf-8')
+                                            const subIndent = detectIndent(subContent)
+                                            const subPkg = JSON.parse(subContent)
+
+                                            await updateWorkspaceDependencies(subPkg, workspaceNpmPackageNames, workspacePackageSourceDirs, publicNpmPackageNames)
+
+                                            const subUpdated = JSON.stringify(subPkg, null, subIndent) + '\n'
+                                            if (subUpdated !== subContent) {
+                                                await writeFile(subPkgPath, subUpdated, 'utf-8')
+                                                console.log(chalk.green(`  ✓ Updated workspace dependencies in ${subPkgPath}\n`))
+                                            }
+                                        } catch (e) {
+                                            // Skip sub-workspaces with unreadable package.json
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -228,13 +257,13 @@ async function buildWorkspacePackageMaps(repositoriesConfig: any, npmRenames: Re
                     workspaceNpmPackageNames[renamedName] = workspacePackageName
                 }
             } catch (error) {
-                // Skip repos without a readable package.json
+                console.log(chalk.gray(`  [debug] Could not read ${packageJsonPath}: ${error}`))
             }
 
             const providers = (repoConfig as any).providers || ((repoConfig as any).provider ? [(repoConfig as any).provider] : [])
 
             for (const provider of providers) {
-                if (provider.capsule === 't44/caps/patterns/npmjs.com/ProjectPublishing') {
+                if (provider.capsule === '@stream44.studio/t44-npmjs.com/caps/ProjectPublishing') {
                     try {
                         const packageJsonContent = await readFile(packageJsonPath, 'utf-8')
                         const packageJson = JSON.parse(packageJsonContent)
@@ -278,10 +307,14 @@ async function updateWorkspaceDependencies(
                 if (typeof depVersion === 'string' && depVersion.startsWith('workspace:')) {
                     try {
                         const workspaceDepName = workspaceNpmPackageNames[depName] || depName
-                        const depSourceDir = workspacePackageSourceDirs[workspaceDepName]
+                        const depSourceDir = workspacePackageSourceDirs[workspaceDepName] || workspacePackageSourceDirs[depName]
 
                         if (!depSourceDir) {
-                            throw new Error(`Could not find source directory for workspace dependency ${depName} (${workspaceDepName})`)
+                            throw new Error(
+                                `Could not find source directory for workspace dependency ${depName} (resolved to: ${workspaceDepName})\n` +
+                                `  workspaceNpmPackageNames keys: ${Object.keys(workspaceNpmPackageNames).join(', ')}\n` +
+                                `  workspacePackageSourceDirs keys: ${Object.keys(workspacePackageSourceDirs).join(', ')}`
+                            )
                         }
 
                         const depPackageJsonPath = join(depSourceDir, 'package.json')
