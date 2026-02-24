@@ -375,8 +375,16 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
                 console.error(chalk.gray('  ' + yamlError.mark.snippet.split('\n').join('\n  ')))
             }
             console.error('')
+            console.error(chalk.red.bold('  === Raw file content (start) ==='))
+            const rawLines = rawContent.split('\n')
+            for (let i = 0; i < rawLines.length; i++) {
+                console.error(chalk.gray(`  ${String(i + 1).padStart(4)} | ${rawLines[i]}`))
+            }
+            console.error(chalk.red.bold('  === Raw file content (end) ==='))
+            console.error('')
             process.exit(1)
         }
+        const isInsideNodeModules = absolutePath.includes('/node_modules/')
         let isWrapped = !!(rawParsed && rawParsed.$schema)
         let needsRewrite = false
 
@@ -417,7 +425,9 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
                 quotingType: '"',
                 forceQuotes: false
             })
-            await writeFile(absolutePath, wrapped)
+            if (!isInsideNodeModules) {
+                await writeFile(absolutePath, wrapped)
+            }
             rawContent = wrapped
             needsRewrite = false
         }
@@ -439,7 +449,9 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
                 quotingType: '"',
                 forceQuotes: false
             })
-            await writeFile(absolutePath, wrapped)
+            if (!isInsideNodeModules) {
+                await writeFile(absolutePath, wrapped)
+            }
             needsRewrite = false
             isWrapped = true
         }
@@ -454,7 +466,9 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
                 quotingType: '"',
                 forceQuotes: false
             })
-            await writeFile(absolutePath, rewritten)
+            if (!isInsideNodeModules) {
+                await writeFile(absolutePath, rewritten)
+            }
             rawContent = rewritten
         }
 
@@ -492,6 +506,13 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
                 console.error('')
                 console.error(chalk.gray('  ' + yamlError.mark.snippet.split('\n').join('\n  ')))
             }
+            console.error('')
+            console.error(chalk.red.bold('  === Raw content being parsed (start) ==='))
+            const contentLines = configContent.split('\n')
+            for (let i = 0; i < contentLines.length; i++) {
+                console.error(chalk.gray(`  ${String(i + 1).padStart(4)} | ${contentLines[i]}`))
+            }
+            console.error(chalk.red.bold('  === Raw content being parsed (end) ==='))
             console.error('')
             process.exit(1)
         }
