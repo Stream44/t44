@@ -236,25 +236,7 @@ export async function capsule({
                             return
                         }
 
-                        // Check if tag already exists locally
-                        const localTag = await this.ProjectRepository.hasTag({ rootDir: stageDir, tag })
-                        if (localTag.exists) {
-                            if (localTag.commit === headCommit) {
-                                console.log(chalk.gray(`  ○ Tag ${tag} already exists at current commit, skipping\n`))
-                                return
-                            }
-                            console.log(chalk.yellow(`\n  Tag ${tag} exists at ${localTag.commit!.slice(0, 8)} but HEAD is ${headCommit.slice(0, 8)}\n`))
-                            const diffText = await this.ProjectRepository.diff({ rootDir: stageDir, from: tag })
-                            if (diffText.length > 0) {
-                                console.log(diffText)
-                            }
-                            throw new Error(
-                                `Git tag '${tag}' already exists but points to a different commit.\n` +
-                                `  Please bump to a different version before pushing.`
-                            )
-                        }
-
-                        // Check if tag already exists on remote
+                        // Check if tag already exists on remote first
                         const remoteTag = await this.ProjectRepository.hasRemoteTag({ rootDir: stageDir, tag })
                         if (remoteTag.exists) {
                             if (remoteTag.commit === headCommit) {
@@ -270,6 +252,19 @@ export async function capsule({
                                 `Git tag '${tag}' already exists on remote but points to a different commit.\n` +
                                 `  Please bump to a different version before pushing.`
                             )
+                        }
+
+                        // Check if tag already exists locally
+                        const localTag = await this.ProjectRepository.hasTag({ rootDir: stageDir, tag })
+                        if (localTag.exists) {
+                            if (localTag.commit === headCommit) {
+                                console.log(chalk.gray(`  ○ Tag ${tag} already exists at current commit, skipping\n`))
+                                return
+                            }
+                            // Local tag points to a different commit but tag is NOT on remote —
+                            // this is a stale tag from a previous failed run. Delete and re-tag.
+                            console.log(chalk.yellow(`  ⟳ Local tag ${tag} is stale (at ${localTag.commit!.slice(0, 8)}, HEAD is ${headCommit.slice(0, 8)}) — re-tagging`))
+                            await $`git tag -d ${tag}`.cwd(stageDir).quiet()
                         }
 
                         await this.ProjectRepository.tag({ rootDir: stageDir, tag })

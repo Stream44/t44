@@ -159,7 +159,26 @@ export async function capsule({
                         const updatedContent = JSON.stringify(packageJson, null, indent) + '\n'
                         await writeFile(packageJsonPath, updatedContent, 'utf-8')
 
-                        console.log(chalk.green(`  ✓ Updated ${packageJsonPath} to version ${newVersion}\n`))
+                        // Write bumped version back to the original source package.json
+                        // so that if this run fails partway through, the next run starts
+                        // from the already-bumped version instead of producing a duplicate tag.
+                        const originalSourceDir = ctx.repoConfig?.sourceDir
+                        if (originalSourceDir) {
+                            const originalPackageJsonPath = join(originalSourceDir, 'package.json')
+                            try {
+                                const originalContent = await readFile(originalPackageJsonPath, 'utf-8')
+                                const originalJson = JSON.parse(originalContent)
+                                originalJson.version = newVersion
+                                const originalIndent = detectIndent(originalContent)
+                                await writeFile(originalPackageJsonPath, JSON.stringify(originalJson, null, originalIndent) + '\n', 'utf-8')
+                                console.log(chalk.green(`  ✓ Updated ${packageJsonPath} to version ${newVersion}`))
+                                console.log(chalk.green(`  ✓ Written back version ${newVersion} to source ${originalPackageJsonPath}\n`))
+                            } catch {
+                                console.log(chalk.green(`  ✓ Updated ${packageJsonPath} to version ${newVersion}\n`))
+                            }
+                        } else {
+                            console.log(chalk.green(`  ✓ Updated ${packageJsonPath} to version ${newVersion}\n`))
+                        }
 
                         ctx.metadata.bumped = true
                         ctx.metadata.newVersion = newVersion

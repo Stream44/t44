@@ -1,12 +1,12 @@
 $schema: ../../../../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSchemas/@t44.sh~t44~structs~WorkspaceConfigFile.json
-'#t44/structs/WorkspaceShellConfig':
+"#t44/structs/WorkspaceShellConfig":
   env:
     default: null
     force:
       F_WORKSPACE_DIR: resolve('${__dirname}/..')
   shell:
     commands:
-      '44':
+      "44":
         description: Run workspace CLI commands.
         cmd: |
           "${F_WORKSPACE_IMPL_DIR}/bin/t44" $@
@@ -60,5 +60,5 @@ $schema: ../../../../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSche
         cliCommand: dev
       deploy:
         cliCommand: deploy
-  createdAt: '2026-02-11T01:01:49.799Z'
-  updatedAt: '2026-02-11T01:01:49.799Z'
+  createdAt: "2026-02-11T01:01:49.799Z"
+  updatedAt: "2026-02-11T01:01:49.799Z"

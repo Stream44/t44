@@ -76,9 +76,11 @@ export async function capsule({
 
                             const wrapped = yaml.dump(output, {
                                 indent: 2,
-                                lineWidth: -1,
+                                lineWidth: 200,
                                 noRefs: true,
-                                sortKeys: false
+                                sortKeys: false,
+                                quotingType: '"',
+                                forceQuotes: false
                             })
                             await writeFile(absolutePath, wrapped)
                         }
@@ -112,9 +114,11 @@ export async function capsule({
                         // Write as YAML with schema wrapper
                         const content = yaml.dump(output, {
                             indent: 2,
-                            lineWidth: -1,
+                            lineWidth: 200,
                             noRefs: true,
-                            sortKeys: false
+                            sortKeys: false,
+                            quotingType: '"',
+                            forceQuotes: false
                         })
                         await writeFile(absolutePath, content)
                     }
@@ -407,9 +411,11 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
 
             const wrapped = yaml.dump(output, {
                 indent: 2,
-                lineWidth: -1,
+                lineWidth: 200,
                 noRefs: true,
-                sortKeys: false
+                sortKeys: false,
+                quotingType: '"',
+                forceQuotes: false
             })
             await writeFile(absolutePath, wrapped)
             rawContent = wrapped
@@ -427,9 +433,11 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
 
             const wrapped = yaml.dump(output, {
                 indent: 2,
-                lineWidth: -1,
+                lineWidth: 200,
                 noRefs: true,
-                sortKeys: false
+                sortKeys: false,
+                quotingType: '"',
+                forceQuotes: false
             })
             await writeFile(absolutePath, wrapped)
             needsRewrite = false
@@ -440,9 +448,11 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
         if (needsRewrite && isWrapped) {
             const rewritten = yaml.dump(rawParsed, {
                 indent: 2,
-                lineWidth: -1,
+                lineWidth: 200,
                 noRefs: true,
-                sortKeys: false
+                sortKeys: false,
+                quotingType: '"',
+                forceQuotes: false
             })
             await writeFile(absolutePath, rewritten)
             rawContent = rewritten
