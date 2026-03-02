@@ -254,4 +254,4 @@ export async function capsule({
         capsuleName: capsule['#']
     })
 }
-capsule['#'] = 't44/caps/ProjectTestLib'
+capsule['#'] = '@stream44.studio/t44/caps/ProjectTestLib'

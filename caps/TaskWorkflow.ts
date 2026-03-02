@@ -25,7 +25,7 @@ export async function capsule({
 
                 lib: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectTestLib',
+                    value: '@stream44.studio/t44/caps/ProjectTestLib',
                 },
 
                 _rootTasks: {
@@ -189,4 +189,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/TaskWorkflow'
+capsule['#'] = '@stream44.studio/t44/caps/TaskWorkflow'

@@ -19,7 +19,7 @@
         "allowSyntheticDefaultImports": true,
         "baseUrl": ".",
         "paths": {
-            "t44/*": [
+            "@stream44.studio/t44/*": [
                 "./*"
             ]
         }

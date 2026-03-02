@@ -16,11 +16,11 @@ const storedConfigCache = new Map<string, Promise<Record<string, any> | null>>()
 // TODO: Remove after all workspaces have been migrated.
 // Maps new capsule name prefixes to old capsule name prefixes for credential file migration.
 const structRelocations: Record<string, string> = {
-    '@stream44.studio/t44-bunny.net/structs/': 't44/structs/providers/bunny.net/',
-    '@stream44.studio/t44-vercel.com/structs/': 't44/structs/providers/vercel.com/',
-    '@stream44.studio/t44-github.com/structs/': 't44/structs/providers/github.com/',
-    '@stream44.studio/t44-dynadot.com/structs/': 't44/structs/providers/dynadot.com/',
-    '@stream44.studio/t44-npmjs.com/structs/': 't44/structs/providers/npmjs.com/',
+    '@stream44.studio/t44-bunny.net/structs/': '@stream44.studio/t44/structs/providers/bunny.net/',
+    '@stream44.studio/t44-vercel.com/structs/': '@stream44.studio/t44/structs/providers/vercel.com/',
+    '@stream44.studio/t44-github.com/structs/': '@stream44.studio/t44/structs/providers/github.com/',
+    '@stream44.studio/t44-dynadot.com/structs/': '@stream44.studio/t44/structs/providers/dynadot.com/',
+    '@stream44.studio/t44-npmjs.com/structs/': '@stream44.studio/t44/structs/providers/npmjs.com/',
 }
 
 export async function capsule({
@@ -38,27 +38,27 @@ export async function capsule({
             '#': {
                 Home: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/Home'
+                    value: '@stream44.studio/t44/caps/Home'
                 },
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfig'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 WorkspaceKey: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceKey'
+                    value: '@stream44.studio/t44/caps/WorkspaceKey'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/HomeRegistry'
+                    value: '@stream44.studio/t44/caps/HomeRegistry'
                 },
                 JsonSchema: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/JsonSchemas'
+                    value: '@stream44.studio/t44/caps/JsonSchemas'
                 },
                 RegisterSchemas: {
                     type: CapsulePropertyTypes.StructInit,
@@ -74,7 +74,7 @@ export async function capsule({
                     value: async function (this: any): Promise<string> {
                         const registryDir = await this.Home.registryDir
                         const workspaceConfig = await this.WorkspaceConfig.config
-                        const workspaceConfigStruct = workspaceConfig?.['#t44/structs/WorkspaceConfig'] || {}
+                        const workspaceConfigStruct = workspaceConfig?.['#@stream44.studio/t44/structs/WorkspaceConfig'] || {}
                         const workspaceName = workspaceConfigStruct.name
                         const connectionType = this.capsuleName.replace(/\//g, '~')
                         return join(registryDir, '@t44.sh~t44~caps~WorkspaceConnection', workspaceName, `${connectionType}.json`)
@@ -326,4 +326,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceConnection'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceConnection'

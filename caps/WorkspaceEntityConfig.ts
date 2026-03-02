@@ -14,11 +14,11 @@ export async function capsule({
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfig'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
                 JsonSchema: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/JsonSchemas'
+                    value: '@stream44.studio/t44/caps/JsonSchemas'
                 },
                 config: {
                     type: CapsulePropertyTypes.GetterFunction,
@@ -75,4 +75,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceEntityConfig'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceEntityConfig'

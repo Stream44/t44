@@ -15,22 +15,22 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$WorkspaceConfig'
             },
-            '#t44/structs/WorkspaceProjectsConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceProjectsConfig': {
                 as: '$WorkspaceProjectsConfig',
             },
-            '#t44/structs/ProjectDeploymentConfig': {
+            '#@stream44.studio/t44/structs/ProjectDeploymentConfig': {
                 as: '$ProjectDeploymentConfig',
             },
-            '#t44/structs/WorkspacePublishingConfig': {
+            '#@stream44.studio/t44/structs/ProjectPublishingConfig': {
                 as: '$WorkspaceRepositories'
             },
-            '#t44/structs/WorkspaceProject': {
+            '#@stream44.studio/t44/structs/WorkspaceProject': {
                 as: '$WorkspaceProject'
             },
-            '#t44/structs/RepositoryOriginDescriptor': {
+            '#@stream44.studio/t44/structs/RepositoryOriginDescriptor': {
                 as: '$RepositoryOriginDescriptor'
             },
             '#': {
@@ -82,7 +82,7 @@ export async function capsule({
                                 throw new Error(
                                     `Project '${projectName}' has no sourceDir configured.\n` +
                                     `  Fix in: ${configFilepath}\n` +
-                                    `  Under: '#t44/structs/WorkspaceProjectsConfig' → projects → ${projectName}`
+                                    `  Under: '#@stream44.studio/t44/structs/WorkspaceProjectsConfig' → projects → ${projectName}`
                                 )
                             }
 
@@ -633,4 +633,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceProjects'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceProjects'

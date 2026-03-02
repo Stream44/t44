@@ -15,16 +15,16 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceCliConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceCliConfig': {
                 as: '$WorkspaceCliConfig'
             },
-            '#t44/structs/WorkspaceShellConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceShellConfig': {
                 as: '$ShellConfig'
             },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfig'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -101,4 +101,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceShell'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceShell'

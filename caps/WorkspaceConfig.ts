@@ -13,7 +13,7 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$WorkspaceConfig'
             },
             '#': {
@@ -27,15 +27,15 @@ export async function capsule({
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/HomeRegistry'
+                    value: '@stream44.studio/t44/caps/HomeRegistry'
                 },
                 WorkspaceConfigFile: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfigFile'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfigFile'
                 },
                 config: {
                     type: CapsulePropertyTypes.GetterFunction,
@@ -46,14 +46,14 @@ export async function capsule({
                         const { config } = await this.WorkspaceConfigFile.loadConfig(configPath, this.workspaceRootDir)
 
                         // Validate javascript.api.workspaceDir from CLI config struct
-                        const cliConfigStructKey = '#t44/structs/WorkspaceCliConfig'
+                        const cliConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceCliConfig'
                         const cliConfigStruct = config[cliConfigStructKey] || {}
                         if (resolve(cliConfigStruct?.javascript?.api?.workspaceDir) !== this.workspaceRootDir) {
                             throw new Error(`javascript.api.workspaceDir '${cliConfigStruct?.javascript?.api?.workspaceDir}' in '${configPath}' does not match expected this.workspaceRootDir '${this.workspaceRootDir}'!`)
                         }
 
                         // Validate rootDir if set
-                        const workspaceConfigStructKey = '#t44/structs/WorkspaceConfig'
+                        const workspaceConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceConfig'
                         const workspaceConfigStruct = config[workspaceConfigStructKey] || {}
                         if (workspaceConfigStruct.rootDir && workspaceConfigStruct.rootDir !== this.workspaceRootDir) {
                             throw new Error(`rootDir '${workspaceConfigStruct.rootDir}' does not match expected '${this.workspaceRootDir}'!`)
@@ -69,7 +69,7 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any): Promise<void> {
 
-                        const workspaceConfigStructKey = '#t44/structs/WorkspaceConfig'
+                        const workspaceConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceConfig'
 
                         const config = await this.config
                         const workspaceConfigStruct = config[workspaceConfigStructKey] || {}
@@ -87,7 +87,7 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any): Promise<void> {
 
-                        const workspaceConfigStructKey = '#t44/structs/WorkspaceConfig'
+                        const workspaceConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceConfig'
 
                         const config = await this.config
                         const workspaceConfigStruct = config[workspaceConfigStructKey] || {}
@@ -265,4 +265,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceConfig'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceConfig'

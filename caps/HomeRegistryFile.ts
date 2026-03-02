@@ -14,13 +14,13 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/HomeRegistryConfig': {
+            '#@stream44.studio/t44/structs/HomeRegistryConfig': {
                 as: '$HomeRegistryConfig'
             },
             '#': {
                 JsonSchema: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/JsonSchemas'
+                    value: '@stream44.studio/t44/caps/JsonSchemas'
                 },
                 RegisterSchemas: {
                     type: CapsulePropertyTypes.StructInit,
@@ -141,4 +141,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/HomeRegistryFile'
+capsule['#'] = '@stream44.studio/t44/caps/HomeRegistryFile'

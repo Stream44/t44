@@ -29,20 +29,20 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/ProjectDeploymentConfig': {
+            '#@stream44.studio/t44/structs/ProjectDeploymentConfig': {
                 as: '$ProjectDeploymentConfig',
             },
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$WorkspaceConfig'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceProjects'
+                    value: '@stream44.studio/t44/caps/WorkspaceProjects'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -186,7 +186,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/ProjectDeployment'
+capsule['#'] = '@stream44.studio/t44/caps/ProjectDeployment'
 
 
 // ── Interactive project selection ────────────────────────────────────

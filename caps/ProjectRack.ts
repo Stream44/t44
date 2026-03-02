@@ -10,20 +10,20 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$WorkspaceConfig'
             },
-            '#t44/structs/ProjectRackConfig': {
+            '#@stream44.studio/t44/structs/ProjectRackConfig': {
                 as: '$ProjectRackConfig'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/HomeRegistry'
+                    value: '@stream44.studio/t44/caps/HomeRegistry'
                 },
                 ensureRack: {
                     type: CapsulePropertyTypes.Function,
@@ -38,7 +38,7 @@ export async function capsule({
 
                         let rackName: string
 
-                        const rackConfigStructKey = '#t44/structs/ProjectRackConfig'
+                        const rackConfigStructKey = '#@stream44.studio/t44/structs/ProjectRackConfig'
                         if (!rackConfig?.name) {
                             const chalk = (await import('chalk')).default
 
@@ -152,4 +152,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/ProjectRack'
+capsule['#'] = '@stream44.studio/t44/caps/ProjectRack'

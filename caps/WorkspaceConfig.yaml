@@ -1,26 +1,26 @@
 $schema: ../../../../.~o/workspace.foundation/@t44.sh~t44~caps~JsonSchemas/@t44.sh~t44~structs~WorkspaceConfigFile.json
 extends:
   - ./WorkspaceShell.yaml
-"#t44/structs/WorkspaceCliConfig":
+"#@stream44.studio/t44/structs/WorkspaceCliConfig":
   javascript:
     api:
       workspaceDir: resolve('${__dirname}/..')
   cli:
     commands:
       init:
-        capsule: "t44/caps/WorkspaceInit"
+        capsule: "@stream44.studio/t44/caps/WorkspaceInit"
         description: Initialize a new Terminal 44 workspace.
       activate:
-        capsule: "t44/caps/WorkspaceShell"
+        capsule: "@stream44.studio/t44/caps/WorkspaceShell"
         description: Generate environment variables for sourcing into shells.
       info:
-        capsule: "t44/caps/WorkspaceInfo"
+        capsule: "@stream44.studio/t44/caps/WorkspaceInfo"
         description: Display information about the workspace.
         options:
           full:
             description: Show full details instead of compact view
       query:
-        capsule: "t44/caps/WorkspaceModel"
+        capsule: "@stream44.studio/t44/caps/WorkspaceModel"
         description: Query the workspace model.
         arguments:
           entitySelector:
@@ -30,14 +30,14 @@ extends:
           full:
             description: Show full details instead of compact view
       dev:
-        capsule: "t44/caps/ProjectDevelopment"
+        capsule: "@stream44.studio/t44/caps/ProjectDevelopment"
         description: Run a project or package dev server.
         arguments:
           projectSelector:
             optional: true
             description: Name of a project or package to run the dev script for.
       push:
-        capsule: "t44/caps/ProjectPublishing"
+        capsule: "@stream44.studio/t44/caps/ProjectPublishing"
         description: Publish local committed code to a remote service.
         arguments:
           projectSelector:
@@ -53,9 +53,10 @@ extends:
             description: Release candidate mode - bump versions, tag, and publish
           release:
             description: Remove release candidate suffix and publish release version
-          publish:
-            description: Publish without bumping versions or tagging - just push current state to providers. Optionally specify a provider filter (e.g. 'git' for git-only).
-            value: optional
+          git:
+            description: Push current state to git providers only (no version bump or tagging).
+          pkg:
+            description: Push current state to package providers only (no version bump or tagging).
           dangerously-reset-main:
             description: Reset the git repository and force push to remote.
           dangerously-reset-gordian-open-integrity:
@@ -65,8 +66,15 @@ extends:
             value: required
           yes-signoff:
             description: Automatically agree to DCO sign-off without prompting.
+      pull:
+        capsule: "@stream44.studio/t44/caps/ProjectPulling"
+        description: Sync changes from a remote branch URL into the local source directory.
+        arguments:
+          url:
+            optional: false
+            description: URL of a remote branch to pull from (e.g. https://github.com/owner/repo/tree/branch)
       deploy:
-        capsule: "t44/caps/ProjectDeployment"
+        capsule: "@stream44.studio/t44/caps/ProjectDeployment"
         description: Deploy a project to a provider.
         arguments:
           projectSelector:

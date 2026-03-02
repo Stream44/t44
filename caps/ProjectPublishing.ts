@@ -2,6 +2,7 @@
 import { join, resolve } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import chalk from 'chalk'
+import glob from 'fast-glob'
 
 // ── Provider Lifecycle Steps ─────────────────────────────────────────
 // Each provider capsule can implement any subset of these methods.
@@ -27,14 +28,14 @@ import chalk from 'chalk'
 // loading the capsule — tags are NOT stored in workspace config because
 // they are an intrinsic property of the capsule itself.
 //
-// When the user runs `t44 push --publish <filter>`, only providers whose
-// tags include the filter value will execute. For example:
-//   - `--publish git`  runs providers tagged 'git' (git-scm, github, OI, dco)
-//   - `--publish npm`  runs providers tagged 'npm' (npmjs)
-//   - no filter        runs all providers
+// When the user runs `t44 push --git` or `t44 push --pkg`, only providers
+// whose tags include the matching value will run. For example:
+//   - `--git`  runs providers tagged 'git' (git-scm, github, OI, dco)
+//   - `--pkg`  runs providers tagged 'pkg' (npmjs)
+//   - neither  runs all providers
 //
 // Providers without tags (e.g. sourcemint license, semver) are skipped
-// when a filter is active, which is correct because --publish mode only
+// when a filter is active, which is correct because --git/--pkg mode only
 // pushes to external targets without re-validating or bumping.
 
 export async function capsule({
@@ -49,45 +50,45 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$WorkspaceConfig'
             },
-            '#t44/structs/WorkspacePublishingConfig': {
+            '#@stream44.studio/t44/structs/ProjectPublishingConfig': {
                 as: '$WorkspaceRepositories'
             },
-            '#t44/structs/WorkspaceProjectsConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceProjectsConfig': {
                 as: '$WorkspaceProjectsConfig'
             },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfig'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceProjects'
+                    value: '@stream44.studio/t44/caps/WorkspaceProjects'
                 },
                 ProjectRepository: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectRepository'
+                    value: '@stream44.studio/t44/caps/ProjectRepository'
                 },
                 ProjectRack: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectRack'
+                    value: '@stream44.studio/t44/caps/ProjectRack'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/HomeRegistry'
+                    value: '@stream44.studio/t44/caps/HomeRegistry'
                 },
                 ProjectCatalogs: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectCatalogs'
+                    value: '@stream44.studio/t44/caps/ProjectCatalogs'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { args }: any): Promise<void> {
 
-                        const { projectSelector, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch, yesSignoff } = args
+                        const { projectSelector, rc, release, bump, git, pkg, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch, yesSignoff } = args
 
                         // ── Dynamic provider loader ──────────────────────────
                         const providerCache = new Map<string, any>()
@@ -101,15 +102,15 @@ export async function capsule({
                         }
 
                         // ── Mode flags ───────────────────────────────────────
-                        const isDryRun = !rc && !release && !bump && !publish
+                        const publishFilter = git ? 'git' : pkg ? 'pkg' : null
+                        const isDryRun = !rc && !release && !bump && !publishFilter
                         const shouldBumpVersions = rc || release || bump
 
                         // ── Provider filter (tag-based + enabled flag) ───────
-                        // When --publish <filter> is given, only providers whose
+                        // When --git or --pkg is given, only providers whose
                         // capsule exposes a matching `tags` property will run.
                         // Tags are queried from the loaded capsule, not from config.
                         // Additionally, providers with `enabled: false` are always skipped.
-                        const publishFilter = typeof publish === 'string' ? publish : null
                         const isProviderIncluded = async (providerConfig: any): Promise<boolean> => {
                             // Check enabled flag first - if explicitly false, skip this provider
                             if (providerConfig.enabled === false) return false
@@ -237,12 +238,8 @@ export async function capsule({
                             console.log('[t44] Use --rc, --release, or --bump to perform actual operations\n')
                         } else if (bump) {
                             console.log('[t44] BUMP MODE: Will bump versions but skip tagging and publishing\n')
-                        } else if (publish) {
-                            if (publishFilter) {
-                                console.log(`[t44] PUBLISH MODE: Pushing current state to '${publishFilter}' providers only (no version bump or tagging)\n`)
-                            } else {
-                                console.log('[t44] PUBLISH MODE: Pushing current state to all providers (no version bump or tagging)\n')
-                            }
+                        } else if (publishFilter) {
+                            console.log(`[t44] PUBLISH MODE: Pushing current state to '${publishFilter}' providers only (no version bump or tagging)\n`)
                         }
 
                         const globalProviders: any[] = Array.isArray(repositoriesConfig.providers)
@@ -281,7 +278,7 @@ export async function capsule({
                                 repoName,
                                 repoConfig,
                                 repoSourceDir: join((repoConfig as any).sourceDir),
-                                options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                 metadata: {} as Record<string, any>,
                                 alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
                                 publishingApi,
@@ -297,12 +294,41 @@ export async function capsule({
                                 repoName,
                                 repoConfig,
                                 repoSourceDir: join((repoConfig as any).sourceDir),
-                                options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                 metadata: {} as Record<string, any>,
                                 alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
                                 publishingApi,
                             }
                             await callProvidersForRepo('prepareSource', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Check for .rej files (unresolved patch conflicts)
+                        // ══════════════════════════════════════════════════════
+                        const allRejFiles: string[] = []
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const projectSourceDir = join((repoConfig as any).sourceDir)
+                            const rejFiles = await glob('**/*.rej', {
+                                cwd: projectSourceDir,
+                                absolute: false,
+                                onlyFiles: true,
+                                dot: true,
+                                ignore: ['**/node_modules/**', '**/.git/**']
+                            })
+                            for (const rejFile of rejFiles) {
+                                allRejFiles.push(join(projectSourceDir, rejFile))
+                            }
+                        }
+
+                        if (allRejFiles.length > 0) {
+                            console.log(chalk.red('\n[t44] ERROR: Found unresolved patch conflict files (.rej)\n'))
+                            console.log(chalk.red('The following .rej files must be resolved and removed before publishing:\n'))
+                            for (const rejFile of allRejFiles) {
+                                console.log(chalk.red(`   • ${rejFile}`))
+                            }
+                            console.log(chalk.yellow('\nThese files are created when `patch` fails to apply a hunk cleanly.'))
+                            console.log(chalk.yellow('Review each .rej file, manually apply the changes, then delete the .rej files.\n'))
+                            process.exit(1)
                         }
 
                         // ══════════════════════════════════════════════════════
@@ -357,7 +383,7 @@ export async function capsule({
                                     repoName,
                                     repoConfig,
                                     repoSourceDir,
-                                    options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                    options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                     metadata: {} as Record<string, any>,
                                     bumpedRepos,
                                     alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
@@ -415,7 +441,7 @@ export async function capsule({
                                 repoName,
                                 repoConfig,
                                 repoSourceDir: stageSourceDirs.get(repoName)!,
-                                options: { isDryRun, shouldBumpVersions, rc, release, bump, publish, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
+                                options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                 metadata: {} as Record<string, any>,
                                 bumpedRepos,
                                 alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
@@ -445,7 +471,7 @@ export async function capsule({
                         // ══════════════════════════════════════════════════════
                         // STEP 6: tag — tag repos with version
                         // ══════════════════════════════════════════════════════
-                        if ((rc || release) && !isDryRun && !publish) {
+                        if ((rc || release) && !isDryRun && !publishFilter) {
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                                 if (!bumpedRepos.has(repoName)) {
                                     console.log(`  ○ Skipping tag for '${repoName}' (not bumped)\n`)
@@ -462,8 +488,8 @@ export async function capsule({
                         const rackName = await this.ProjectRack.getRackName()
                         if (rackName) {
                             const registryRootDir = await this.HomeRegistry.rootDir
-                            const rackStructDir = 't44/structs/ProjectRack'.replace(/\//g, '~')
-                            const rackCapsuleDir = 't44/caps/ProjectRepository'.replace(/\//g, '~')
+                            const rackStructDir = '@stream44.studio/t44/structs/ProjectRack'.replace(/\//g, '~')
+                            const rackCapsuleDir = '@stream44.studio/t44/caps/ProjectRepository'.replace(/\//g, '~')
                             const workspaceConfig = await this.$WorkspaceConfig.config
                             const workspaceRootDir = workspaceConfig?.rootDir
                             const projects = await this.WorkspaceProjects.list
@@ -501,7 +527,7 @@ export async function capsule({
                                 try {
                                     await this.ProjectRepository.initBare({ rootDir: rackRepoDir })
 
-                                    const remoteName = 't44/caps/ProjectRack'
+                                    const remoteName = '@stream44.studio/t44/caps/ProjectRack'
                                     const hasRemote = await this.ProjectRepository.hasRemote({ rootDir: projectSourceDir, name: remoteName })
                                     if (!hasRemote) {
                                         await this.ProjectRepository.addRemote({ rootDir: projectSourceDir, name: remoteName, url: rackRepoDir })
@@ -625,4 +651,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/ProjectPublishing'
+capsule['#'] = '@stream44.studio/t44/caps/ProjectPublishing'

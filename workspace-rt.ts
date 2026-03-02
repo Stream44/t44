@@ -19,7 +19,7 @@ async function findWorkspaceRoot(): Promise<string> {
         const workspaceConfigPath = join(workspaceDir, 'workspace.yaml')
 
         await mkdir(workspaceDir, { recursive: true })
-        const workspaceYaml = `extends:\n  - 't44/workspace.yaml'\n`
+        const workspaceYaml = `extends:\n  - '@stream44.studio/t44/workspace.yaml'\n`
         await writeFile(workspaceConfigPath, workspaceYaml)
 
         return process.cwd()
@@ -123,12 +123,12 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
     const result = await run({
         overrides: {
-            ['t44/caps/WorkspaceConfig']: {
+            ['@stream44.studio/t44/caps/WorkspaceConfig']: {
                 '#': {
                     workspaceRootDir
                 }
             },
-            ['t44/caps/ProjectTest']: {
+            ['@stream44.studio/t44/caps/ProjectTest']: {
                 '#': {
                     testRootDir: options?.importMeta?.dir
                 }

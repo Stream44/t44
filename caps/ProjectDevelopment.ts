@@ -20,15 +20,15 @@ export async function capsule({
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfig'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceProjects'
+                    value: '@stream44.studio/t44/caps/WorkspaceProjects'
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -254,4 +254,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/ProjectDevelopment'
+capsule['#'] = '@stream44.studio/t44/caps/ProjectDevelopment'

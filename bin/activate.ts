@@ -10,7 +10,7 @@ await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) =>
             '#': {
                 cli: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceCli'
+                    value: '@stream44.studio/t44/caps/WorkspaceCli'
                 },
             }
         }

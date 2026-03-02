@@ -114,7 +114,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
     const result = await run({
         overrides: {
-            ['t44/caps/ProjectTest']: {
+            ['@stream44.studio/t44/caps/ProjectTest']: {
                 '#': {
                     testRootDir: options?.importMeta?.dir,
                     verbose: !!process.env.VERBOSE,

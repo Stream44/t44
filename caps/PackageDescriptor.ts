@@ -17,7 +17,7 @@ export async function capsule({
             '#': {
                 JsonSchema: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/JsonSchemas'
+                    value: '@stream44.studio/t44/caps/JsonSchemas'
                 },
                 RegisterSchemas: {
                     type: CapsulePropertyTypes.StructInit,
@@ -85,4 +85,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/PackageDescriptor'
+capsule['#'] = '@stream44.studio/t44/caps/PackageDescriptor'

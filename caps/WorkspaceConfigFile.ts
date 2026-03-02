@@ -16,17 +16,17 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceConfigFile': {
+            '#@stream44.studio/t44/structs/WorkspaceConfigFile': {
                 as: '$ConfigFile'
             },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfig'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
                 JsonSchema: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/JsonSchemas'
+                    value: '@stream44.studio/t44/caps/JsonSchemas'
                 },
                 RegisterSchemas: {
                     type: CapsulePropertyTypes.StructInit,
@@ -221,7 +221,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceConfigFile'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceConfigFile'
 
 function resolveExtendPath(extendPath: string, configDir: string): string {
     if (extendPath.startsWith('.')) {
@@ -230,7 +230,7 @@ function resolveExtendPath(extendPath: string, configDir: string): string {
         // For module paths, we need to resolve the package directory first
         // because require.resolve() only works for JS modules, not .yaml files
         // Split the path into package name and file path
-        // Handle scoped packages like t44/workspace.yaml
+        // Handle scoped packages like @stream44.studio/t44/workspace.yaml
         let packageName: string
         let filePath: string
 
@@ -396,7 +396,7 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
 
         // Migrate old schema envelope format to new format (relative $schema, no $defs)
         if (isWrapped) {
-            const expectedSchemaRef = resolveSchemaRef(absolutePath, 't44/structs/WorkspaceConfigFile', workspaceRootDir)
+            const expectedSchemaRef = resolveSchemaRef(absolutePath, '@stream44.studio/t44/structs/WorkspaceConfigFile', workspaceRootDir)
             if (rawParsed.$schema !== expectedSchemaRef) {
                 rawParsed.$schema = expectedSchemaRef
                 needsRewrite = true
@@ -410,7 +410,7 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
         // Migrate old WorkspaceConfigFile wrapper format to flat format
         if (isWrapped && rawParsed.WorkspaceConfigFile) {
             const inner = rawParsed.WorkspaceConfigFile
-            const schemaRef = resolveSchemaRef(absolutePath, 't44/structs/WorkspaceConfigFile', workspaceRootDir)
+            const schemaRef = resolveSchemaRef(absolutePath, '@stream44.studio/t44/structs/WorkspaceConfigFile', workspaceRootDir)
             const output: Record<string, any> = {}
             if (schemaRef) {
                 output.$schema = schemaRef
@@ -434,7 +434,7 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
 
         // Auto-wrap raw config files with schema envelope
         if (!isWrapped && rawParsed && typeof rawParsed === 'object') {
-            const schemaRef = resolveSchemaRef(absolutePath, 't44/structs/WorkspaceConfigFile', workspaceRootDir)
+            const schemaRef = resolveSchemaRef(absolutePath, '@stream44.studio/t44/structs/WorkspaceConfigFile', workspaceRootDir)
             const output: Record<string, any> = {}
             if (schemaRef) {
                 output.$schema = schemaRef
@@ -532,42 +532,42 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
 
         // Check for deprecated top-level deployments property
         if (config.deployments) {
-            throw new Error(`Top-level 'deployments' property found in '${absolutePath}'. This format is deprecated. Please move your deployments configuration under the '#t44/structs/ProjectDeploymentConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'deployments' property found in '${absolutePath}'. This format is deprecated. Please move your deployments configuration under the '#@stream44.studio/t44/structs/ProjectDeploymentConfig' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level cli property
         if (config.cli) {
-            throw new Error(`Top-level 'cli' property found in '${absolutePath}'. This format is deprecated. Please move your cli configuration under the '#t44/structs/WorkspaceCliConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'cli' property found in '${absolutePath}'. This format is deprecated. Please move your cli configuration under the '#@stream44.studio/t44/structs/WorkspaceCliConfig' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level shell property
         if (config.shell) {
-            throw new Error(`Top-level 'shell' property found in '${absolutePath}'. This format is deprecated. Please move your shell configuration under the '#t44/structs/WorkspaceShellConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'shell' property found in '${absolutePath}'. This format is deprecated. Please move your shell configuration under the '#@stream44.studio/t44/structs/WorkspaceShellConfig' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level env property
         if (config.env) {
-            throw new Error(`Top-level 'env' property found in '${absolutePath}'. This format is deprecated. Please move your env configuration under the '#t44/structs/WorkspaceShellConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'env' property found in '${absolutePath}'. This format is deprecated. Please move your env configuration under the '#@stream44.studio/t44/structs/WorkspaceShellConfig' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level javascript property
         if (config.javascript) {
-            throw new Error(`Top-level 'javascript' property found in '${absolutePath}'. This format is deprecated. Please move your javascript configuration under the '#t44/structs/WorkspaceCliConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'javascript' property found in '${absolutePath}'. This format is deprecated. Please move your javascript configuration under the '#@stream44.studio/t44/structs/WorkspaceCliConfig' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level workspace property
         if (config.workspace) {
-            throw new Error(`Top-level 'workspace' property found in '${absolutePath}'. This format is deprecated. Please move your workspace configuration under the '#t44/structs/WorkspaceConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'workspace' property found in '${absolutePath}'. This format is deprecated. Please move your workspace configuration under the '#@stream44.studio/t44/structs/WorkspaceConfig' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level repositories property
         if (config.repositories) {
-            throw new Error(`Top-level 'repositories' property found in '${absolutePath}'. This format is deprecated. Please move your repositories configuration under the '#t44/structs/WorkspacePublishingConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'repositories' property found in '${absolutePath}'. This format is deprecated. Please move your repositories configuration under the '#@stream44.studio/t44/structs/ProjectPublishingConfig' key. See documentation for the new format.`)
         }
 
         // Check for deprecated top-level mappings property
         if (config.mappings) {
-            throw new Error(`Top-level 'mappings' property found in '${absolutePath}'. This format is deprecated. Please move your mappings configuration under the '#t44/structs/WorkspaceMappingsConfig' key. See documentation for the new format.`)
+            throw new Error(`Top-level 'mappings' property found in '${absolutePath}'. This format is deprecated. Please move your mappings configuration under the '#@stream44.studio/t44/structs/WorkspaceMappingsConfig' key. See documentation for the new format.`)
         }
 
         // Validate that only 'extends' is allowed as a top-level property, all others must start with '#'
@@ -647,21 +647,21 @@ async function loadConfigWithExtends(configPath: string, workspaceRootDir: strin
     const expectedWorkspaceDir = resolve(mainConfigDir, '..')
 
     // Set javascript.api.workspaceDir in the CLI config struct
-    const cliConfigKey = '#t44/structs/WorkspaceCliConfig'
+    const cliConfigKey = '#@stream44.studio/t44/structs/WorkspaceCliConfig'
     if (!mergedConfig[cliConfigKey]) mergedConfig[cliConfigKey] = {}
     if (!mergedConfig[cliConfigKey].javascript) mergedConfig[cliConfigKey].javascript = {}
     if (!mergedConfig[cliConfigKey].javascript.api) mergedConfig[cliConfigKey].javascript.api = {}
     mergedConfig[cliConfigKey].javascript.api.workspaceDir = expectedWorkspaceDir
 
     // Set F_WORKSPACE_DIR in the shell config struct
-    const shellConfigKey = '#t44/structs/WorkspaceShellConfig'
+    const shellConfigKey = '#@stream44.studio/t44/structs/WorkspaceShellConfig'
     if (!mergedConfig[shellConfigKey]) mergedConfig[shellConfigKey] = {}
     if (!mergedConfig[shellConfigKey].env) mergedConfig[shellConfigKey].env = {}
     if (!mergedConfig[shellConfigKey].env.force) mergedConfig[shellConfigKey].env.force = {}
     mergedConfig[shellConfigKey].env.force.F_WORKSPACE_DIR = expectedWorkspaceDir
 
     // Set workspaceRootDir and workspaceConfigFilepath in the workspace config struct
-    const workspaceConfigStructKey = '#t44/structs/WorkspaceConfig'
+    const workspaceConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceConfig'
     const expectedConfigFilepath = '.workspace/workspace.yaml'
     if (!mergedConfig[workspaceConfigStructKey]) mergedConfig[workspaceConfigStructKey] = {}
 
@@ -728,7 +728,7 @@ async function writeConfigMetadataCache(
 
         const metadata = {
             $schema: 'https://json-schema.org/draft/2020-12/schema',
-            $id: 't44/structs/WorkspaceConfigFileMeta.v0',
+            $id: '@stream44.studio/t44/structs/WorkspaceConfigFileMeta.v0',
             filePath,
             relPath,
             entities,

@@ -13,23 +13,23 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/ProjectDeploymentConfig': {
+            '#@stream44.studio/t44/structs/ProjectDeploymentConfig': {
                 as: '$config'
             },
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$Config'
             },
-            '#t44/structs/WorkspacePublishingConfig': {
+            '#@stream44.studio/t44/structs/ProjectPublishingConfig': {
                 as: '$WorkspaceRepositories'
             },
             '#': {
                 WorkspaceProjects: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceProjects'
+                    value: '@stream44.studio/t44/caps/WorkspaceProjects'
                 },
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspaceConfig'
+                    value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
                 Vercel: {
                     type: CapsulePropertyTypes.Mapping,
@@ -45,7 +45,7 @@ export async function capsule({
                 },
                 ProjectCatalogs: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectCatalogs'
+                    value: '@stream44.studio/t44/caps/ProjectCatalogs'
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -560,7 +560,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceInfo'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceInfo'
 
 
 

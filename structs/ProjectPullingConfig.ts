@@ -13,28 +13,24 @@ export async function capsule({
                         schema: {
                             type: 'object',
                             properties: {
-                                description: {
-                                    type: 'string',
-                                    description: 'Description of the catalog.'
-                                },
-                                repositories: {
-                                    type: 'object',
-                                    additionalProperties: true,
-                                    description: 'Map of repository identifiers to their configurations.'
+                                providers: {
+                                    type: 'array',
+                                    description: 'Global pulling provider configurations. Each provider can parse URLs and pull changes.'
                                 },
                                 createdAt: {
                                     type: 'string',
                                     format: 'date-time',
-                                    description: 'ISO 8601 timestamp of when the catalog was created.'
+                                    description: 'ISO 8601 timestamp of when the entity config was created.'
                                 },
                                 updatedAt: {
                                     type: 'string',
                                     format: 'date-time',
-                                    description: 'ISO 8601 timestamp of when the catalog was last updated.'
+                                    description: 'ISO 8601 timestamp of when the entity config was last updated.'
                                 }
                             },
-                            additionalProperties: true,
-                            description: 'A project catalog entry in the home registry.'
+                            required: ['createdAt', 'updatedAt'],
+                            additionalProperties: false,
+                            description: 'Workspace configuration for pulling providers that import changes from remote URLs.'
                         }
                     }
                 }
@@ -47,10 +43,10 @@ export async function capsule({
             }
         }
     }, {
-        extendsCapsule: '@stream44.studio/t44/caps/HomeRegistryFile',
+        extendsCapsule: '@stream44.studio/t44/caps/WorkspaceEntityConfig',
         importMeta: import.meta,
         importStack: makeImportStack(),
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = '@stream44.studio/t44/structs/WorkspaceCatalogs'
+capsule['#'] = '@stream44.studio/t44/structs/ProjectPullingConfig'

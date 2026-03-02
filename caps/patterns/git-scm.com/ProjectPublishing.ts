@@ -18,10 +18,10 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/patterns/git-scm.com/ProjectPublishingFact': {
+            '#@stream44.studio/t44/structs/patterns/git-scm.com/ProjectPublishingFact': {
                 as: '$GitFact'
             },
-            '#t44/structs/ProjectPublishingFact': {
+            '#@stream44.studio/t44/structs/ProjectPublishingFact': {
                 as: '$StatusFact'
             },
             '#': {
@@ -31,15 +31,15 @@ export async function capsule({
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 ProjectRepository: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectRepository'
+                    value: '@stream44.studio/t44/caps/ProjectRepository'
                 },
                 ProjectCatalogs: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectCatalogs'
+                    value: '@stream44.studio/t44/caps/ProjectCatalogs'
                 },
                 prepare: {
                     type: CapsulePropertyTypes.Function,
@@ -504,4 +504,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/patterns/git-scm.com/ProjectPublishing'
+capsule['#'] = '@stream44.studio/t44/caps/patterns/git-scm.com/ProjectPublishing'

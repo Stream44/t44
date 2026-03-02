@@ -10,24 +10,24 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$WorkspaceConfig'
             },
-            '#t44/structs/WorkspaceKeyConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceKeyConfig': {
                 as: '$WorkspaceKeyConfig'
             },
             '#': {
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 HomeRegistry: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/HomeRegistry'
+                    value: '@stream44.studio/t44/caps/HomeRegistry'
                 },
                 RootKey: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/RootKey'
+                    value: '@stream44.studio/t44/caps/RootKey'
                 },
                 ensureKey: {
                     type: CapsulePropertyTypes.Function,
@@ -125,7 +125,7 @@ export async function capsule({
 
                         let keyName: string
 
-                        const keyConfigStructKey = '#t44/structs/WorkspaceKeyConfig'
+                        const keyConfigStructKey = '#@stream44.studio/t44/structs/WorkspaceKeyConfig'
                         if (!keyConfig?.name) {
                             const chalk = (await import('chalk')).default
 
@@ -335,4 +335,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/WorkspaceKey'
+capsule['#'] = '@stream44.studio/t44/caps/WorkspaceKey'

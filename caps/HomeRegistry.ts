@@ -10,32 +10,32 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/HomeRegistryConfig': {
+            '#@stream44.studio/t44/structs/HomeRegistryConfig': {
                 as: '$HomeRegistryConfig'
             },
-            '#t44/structs/HomeRegistry': {
+            '#@stream44.studio/t44/structs/HomeRegistry': {
                 as: '$HomeRegistry'
             },
-            '#t44/structs/Workspace': {
+            '#@stream44.studio/t44/structs/Workspace': {
                 as: '$Workspace'
             },
-            '#t44/structs/WorkspaceKey': {
+            '#@stream44.studio/t44/structs/WorkspaceKey': {
                 as: '$WorkspaceKey'
             },
-            '#t44/structs/ProjectRack': {
+            '#@stream44.studio/t44/structs/ProjectRack': {
                 as: '$ProjectRack'
             },
-            '#t44/structs/WorkspaceCatalogs': {
+            '#@stream44.studio/t44/structs/WorkspaceCatalogs': {
                 as: '$WorkspaceCatalogs'
             },
             '#': {
                 Home: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/Home'
+                    value: '@stream44.studio/t44/caps/Home'
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 rootDir: {
                     type: CapsulePropertyTypes.GetterFunction,
@@ -316,4 +316,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/HomeRegistry'
+capsule['#'] = '@stream44.studio/t44/caps/HomeRegistry'

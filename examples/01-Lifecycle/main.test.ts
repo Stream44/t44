@@ -9,7 +9,7 @@ export const testConfig = {
 import { join } from 'path'
 import { mkdir, writeFile, rm, stat } from 'fs/promises'
 import * as bunTest from 'bun:test'
-import { run } from 't44/workspace-rt'
+import { run } from '@stream44.studio/t44/workspace-rt'
 
 const {
     test: { describe, it, expect, beforeAll, workbenchDir },
@@ -20,7 +20,7 @@ const {
             '#': {
                 test: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectTest',
+                    value: '@stream44.studio/t44/caps/ProjectTest',
                     options: {
                         '#': {
                             bunTest,
@@ -32,7 +32,7 @@ const {
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: 't44/examples/01-Lifecycle/main.test'
+        capsuleName: '@stream44.studio/t44/examples/01-Lifecycle/main.test'
     })
     return { spine }
 }, async ({ spine, apis }: any) => {

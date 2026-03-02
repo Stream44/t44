@@ -10,20 +10,20 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspaceConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceConfig': {
                 as: '$WorkspaceConfig'
             },
-            '#t44/structs/RootKeyConfig': {
+            '#@stream44.studio/t44/structs/RootKeyConfig': {
                 as: '$RootKeyConfig'
             },
             '#': {
                 Home: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/Home'
+                    value: '@stream44.studio/t44/caps/Home'
                 },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/WorkspacePrompt'
+                    value: '@stream44.studio/t44/caps/WorkspacePrompt'
                 },
                 ensureKey: {
                     type: CapsulePropertyTypes.Function,
@@ -216,4 +216,4 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/RootKey'
+capsule['#'] = '@stream44.studio/t44/caps/RootKey'

@@ -24,18 +24,72 @@ export async function capsule({
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#t44/structs/WorkspacePublishingConfig': {
+            '#@stream44.studio/t44/structs/ProjectPublishingConfig': {
                 as: '$WorkspaceRepositories'
             },
-            '#t44/structs/WorkspaceMappingsConfig': {
+            '#@stream44.studio/t44/structs/WorkspaceMappingsConfig': {
                 as: '$WorkspaceMappings'
             },
             '#': {
+                reverseRenamePatch: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { patchContent }: { patchContent: string }): Promise<{ content: string, modified: boolean }> {
+                        const mappingsConfig = await this.$WorkspaceMappings.config
+                        const publishingMappings = mappingsConfig?.mappings?.['@stream44.studio/t44/caps/patterns/ProjectPublishing']
+                        if (!publishingMappings?.npm) return { content: patchContent, modified: false }
+
+                        const npmRenames: Record<string, string> = publishingMappings.npm
+
+                        // Build reverse map: publicName → workspaceName
+                        // Only include mappings where the public name starts with '@' to avoid
+                        // overly broad replacements (e.g. 't44' would match too many things)
+                        const reverseRenames: Record<string, string> = {}
+                        for (const [workspaceName, publicName] of Object.entries(npmRenames)) {
+                            if (publicName.startsWith('@')) {
+                                reverseRenames[publicName] = workspaceName
+                            }
+                        }
+
+                        // Sort by length descending to replace longer names first (avoid partial matches)
+                        const reverseEntries = Object.entries(reverseRenames)
+                            .sort((a, b) => b[0].length - a[0].length)
+
+                        if (reverseEntries.length === 0) return { content: patchContent, modified: false }
+
+                        let content = patchContent
+                        let modified = false
+
+                        for (const [publicName, workspaceName] of reverseEntries) {
+                            // Replace the literal public name with workspace name
+                            const regex = new RegExp(publicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                            const replaced = content.replace(regex, workspaceName)
+                            if (replaced !== content) {
+                                content = replaced
+                                modified = true
+                            }
+
+                            // Also replace regex-escaped versions of the public name
+                            // (e.g. @stream44\.studio\/dco in test patterns)
+                            const pubEscaped = publicName.replace(/[.*+?^${}()|[\]/\\]/g, '\\$&')
+                            if (pubEscaped !== publicName) {
+                                const wsEscaped = workspaceName.replace(/[.*+?^${}()|[\]/\\]/g, '\\$&')
+                                const escapedRegex = new RegExp(pubEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                                const replacedEscaped = content.replace(escapedRegex, wsEscaped)
+                                if (replacedEscaped !== content) {
+                                    content = replacedEscaped
+                                    modified = true
+                                }
+                            }
+                        }
+
+                        return { content, modified }
+                    }
+                },
                 rename: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { dirs, repos }: { dirs: Iterable<string>, repos?: Record<string, any> }) {
                         const mappingsConfig = await this.$WorkspaceMappings.config
-                        const publishingMappings = mappingsConfig?.mappings?.['t44/caps/patterns/ProjectPublishing']
+                        const publishingMappings = mappingsConfig?.mappings?.['@stream44.studio/t44/caps/patterns/ProjectPublishing']
                         if (publishingMappings?.npm) {
                             const npmRenames: Record<string, string> = publishingMappings.npm
                             const renameEntries = Object.entries(npmRenames)
@@ -101,7 +155,7 @@ export async function capsule({
                         if (repos) {
                             const repositoriesConfig = await this.$WorkspaceRepositories.config
                             const mappingsConfig = await this.$WorkspaceMappings.config
-                            const npmRenames: Record<string, string> = mappingsConfig?.mappings?.['t44/caps/patterns/ProjectPublishing']?.npm || {}
+                            const npmRenames: Record<string, string> = mappingsConfig?.mappings?.['@stream44.studio/t44/caps/patterns/ProjectPublishing']?.npm || {}
                             const { publicNpmPackageNames, workspaceNpmPackageNames, workspacePackageSourceDirs } = await buildWorkspacePackageMaps(repositoriesConfig, npmRenames)
 
                             console.log('[t44] Resolving workspace dependencies ...\n')
@@ -260,7 +314,7 @@ export async function capsule({
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/caps/patterns/semver.org/ProjectPublishing'
+capsule['#'] = '@stream44.studio/t44/caps/patterns/semver.org/ProjectPublishing'
 
 
 async function buildWorkspacePackageMaps(repositoriesConfig: any, npmRenames: Record<string, string>) {

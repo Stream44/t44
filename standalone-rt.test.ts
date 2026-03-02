@@ -12,12 +12,12 @@ const { test: { workbenchDir } } = await run(async ({ encapsulate, CapsuleProper
             '#': {
                 test: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectTest',
+                    value: '@stream44.studio/t44/caps/ProjectTest',
                     options: { '#': { bunTest, env: {} } }
                 },
             }
         }
-    }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test' })
+    }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test' })
     return { spine }
 }, async ({ spine, apis }: any) => {
     return apis[spine.capsuleSourceLineRef]
@@ -37,7 +37,7 @@ describe('standalone-rt multiple run() calls', () => {
                         },
                     }
                 }
-            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test.run1' })
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.run1' })
             return { spine }
         }, async ({ spine, apis }: any) => {
             return apis[spine.capsuleSourceLineRef].greeting
@@ -58,7 +58,7 @@ describe('standalone-rt multiple run() calls', () => {
                         },
                     }
                 }
-            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test.run2' })
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.run2' })
             return { spine }
         }, async ({ spine, apis }: any) => {
             return apis[spine.capsuleSourceLineRef].greeting
@@ -81,7 +81,7 @@ describe('standalone-rt multiple run() calls', () => {
                         },
                     }
                 }
-            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test.closure' })
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.closure' })
             return { spine }
         }, async ({ spine, apis }: any) => {
             return apis[spine.capsuleSourceLineRef].value
@@ -99,7 +99,7 @@ describe('standalone-rt multiple run() calls', () => {
                         name: { type: CapsulePropertyTypes.Literal, value: 'capsule-a' },
                     }
                 }
-            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test.multi-a' })
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.multi-a' })
 
             const spineB = await encapsulate({
                 '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
@@ -108,7 +108,7 @@ describe('standalone-rt multiple run() calls', () => {
                         name: { type: CapsulePropertyTypes.Literal, value: 'capsule-b' },
                     }
                 }
-            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test.multi-b' })
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.multi-b' })
 
             return { spineA, spineB }
         }, async ({ spineA, spineB, apis }: any) => {
@@ -134,7 +134,7 @@ describe('standalone-rt multiple run() calls', () => {
                         },
                     }
                 }
-            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: 't44/standalone-rt.test.snapshot' })
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.snapshot' })
             return { spine }
         }, async ({ spine, apis }: any) => {
             return apis[spine.capsuleSourceLineRef].greeting

@@ -21,7 +21,7 @@ export async function capsule({
             '#': {
                 lib: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: 't44/caps/ProjectTestLib',
+                    value: '@stream44.studio/t44/caps/ProjectTestLib',
                 },
                 bunTest: {
                     type: CapsulePropertyTypes.Literal,
@@ -248,4 +248,4 @@ export async function capsule({
         capsuleName: capsule['#']
     })
 }
-capsule['#'] = 't44/caps/ProjectTest'
+capsule['#'] = '@stream44.studio/t44/caps/ProjectTest'

@@ -6,7 +6,7 @@ export async function capsule({
 }: any) {
     return encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
-            '#t44/caps/ConfigSchemaStruct': {
+            '#@stream44.studio/t44/caps/ConfigSchemaStruct': {
                 as: 'schema',
                 options: {
                     '#': {
@@ -51,10 +51,10 @@ export async function capsule({
             }
         }
     }, {
-        extendsCapsule: 't44/caps/WorkspaceEntityConfig',
+        extendsCapsule: '@stream44.studio/t44/caps/WorkspaceEntityConfig',
         importMeta: import.meta,
         importStack: makeImportStack(),
         capsuleName: capsule['#'],
     })
 }
-capsule['#'] = 't44/structs/HomeRegistryConfig'
+capsule['#'] = '@stream44.studio/t44/structs/HomeRegistryConfig'
