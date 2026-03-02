@@ -64,11 +64,25 @@ export async function capsule({
                                             let modified = false
 
                                             for (const [workspaceName, publicName] of renameEntries) {
+                                                // Replace the literal workspace name
                                                 const regex = new RegExp(workspaceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
                                                 const replaced = content.replace(regex, publicName)
                                                 if (replaced !== content) {
                                                     content = replaced
                                                     modified = true
+                                                }
+
+                                                // Also replace regex-escaped versions of the workspace name
+                                                // (e.g. @stream44\.studio\/encapsulate in test patterns)
+                                                const wsEscaped = workspaceName.replace(/[.*+?^${}()|[\]/\\]/g, '\\$&')
+                                                if (wsEscaped !== workspaceName) {
+                                                    const pubEscaped = publicName.replace(/[.*+?^${}()|[\]/\\]/g, '\\$&')
+                                                    const escapedRegex = new RegExp(wsEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                                                    const replacedEscaped = content.replace(escapedRegex, pubEscaped)
+                                                    if (replacedEscaped !== content) {
+                                                        content = replacedEscaped
+                                                        modified = true
+                                                    }
                                                 }
                                             }
 

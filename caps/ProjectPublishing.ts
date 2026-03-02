@@ -104,12 +104,15 @@ export async function capsule({
                         const isDryRun = !rc && !release && !bump && !publish
                         const shouldBumpVersions = rc || release || bump
 
-                        // ── Provider filter (tag-based) ────────────────────
+                        // ── Provider filter (tag-based + enabled flag) ───────
                         // When --publish <filter> is given, only providers whose
                         // capsule exposes a matching `tags` property will run.
                         // Tags are queried from the loaded capsule, not from config.
+                        // Additionally, providers with `enabled: false` are always skipped.
                         const publishFilter = typeof publish === 'string' ? publish : null
                         const isProviderIncluded = async (providerConfig: any): Promise<boolean> => {
+                            // Check enabled flag first - if explicitly false, skip this provider
+                            if (providerConfig.enabled === false) return false
                             if (!publishFilter) return true
                             const provider = await getProvider(providerConfig.capsule)
                             const tags: string[] | undefined = provider.tags
@@ -147,10 +150,23 @@ export async function capsule({
                             for (const repoProvider of repoProviders) {
                                 const capsuleName = repoProvider.capsule
                                 const globalDefault = globalDefaults.get(capsuleName)
-                                merged.push(globalDefault
-                                    ? { ...repoProvider, config: deepMerge(globalDefault.config, repoProvider.config) }
-                                    : repoProvider
-                                )
+                                if (globalDefault) {
+                                    // Merge: repo-level enabled overrides global, config is deep-merged
+                                    const mergedProvider = {
+                                        ...globalDefault,
+                                        ...repoProvider,
+                                        config: deepMerge(globalDefault.config, repoProvider.config),
+                                    }
+                                    // Explicit enabled at repo level takes precedence
+                                    if ('enabled' in repoProvider) {
+                                        mergedProvider.enabled = repoProvider.enabled
+                                    } else if ('enabled' in globalDefault) {
+                                        mergedProvider.enabled = globalDefault.enabled
+                                    }
+                                    merged.push(mergedProvider)
+                                } else {
+                                    merged.push(repoProvider)
+                                }
                                 seen.add(capsuleName)
                             }
 
@@ -242,6 +258,7 @@ export async function capsule({
                             ctx: any,
                         ) => {
                             const providers = resolveRepoProviders(repoConfig, globalProviders)
+                            ctx.mergedProviders = providers
                             for (const providerConfig of providers) {
                                 if (!await isProviderIncluded(providerConfig)) continue
 

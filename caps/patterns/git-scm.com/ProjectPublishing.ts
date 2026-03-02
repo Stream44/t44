@@ -53,7 +53,7 @@ export async function capsule({
                         const projectionDir = ctx.publishingApi.getProjectionDir(capsule['#'])
                         const stageDir = join(projectionDir, 'stage', originUri.replace(/[\/]/g, '~'))
 
-                        // Clone if repository doesn't exist yet
+                        // ── 1. Clone if repository doesn't exist yet ────────────
                         let isNewEmptyRepo = false
                         const repoExists = await this.ProjectRepository.exists({ rootDir: stageDir })
                         if (!repoExists) {
@@ -62,7 +62,14 @@ export async function capsule({
                             isNewEmptyRepo = result.isNewEmptyRepo
                         }
 
-                        // Set local git author from RepositorySettings config
+                        // ── 2. Ensure origin remote exists (heal if missing) ────
+                        const hasOrigin = await this.ProjectRepository.hasRemote({ rootDir: stageDir, name: 'origin' })
+                        if (!hasOrigin) {
+                            console.log(`Re-adding missing 'origin' remote ...`)
+                            await this.ProjectRepository.addRemote({ rootDir: stageDir, name: 'origin', url: originUri })
+                        }
+
+                        // ── 3. Set local git author ─────────────────────────────
                         if (authorConfig?.name) {
                             await $`git config user.name ${authorConfig.name}`.cwd(stageDir).quiet()
                         }
@@ -70,7 +77,85 @@ export async function capsule({
                             await $`git config user.email ${authorConfig.email}`.cwd(stageDir).quiet()
                         }
 
-                        // Sync files using rsync with gitignore support and delete removed files
+                        // ── 4. Determine target branch ──────────────────────────
+                        const targetBranch = ctx.options.branch
+                        const effectiveBranch = targetBranch || 'main'
+
+                        // ── 5. Detect empty repo ────────────────────────────────
+                        const headCheck = await $`git rev-parse HEAD`.cwd(stageDir).quiet().nothrow()
+                        const isEmptyRepo = isNewEmptyRepo || headCheck.exitCode !== 0
+
+                        // ── 6. Fetch from remote ────────────────────────────────
+                        // Always fetch so we know the true state of the remote
+                        // before making any branch decisions. Skip for empty repos
+                        // that were just created (nothing to fetch).
+                        if (!isEmptyRepo) {
+                            await $`git fetch origin`.cwd(stageDir).quiet().nothrow()
+                        }
+
+                        // ── 7. Clean working tree and sync branch to remote ─────
+                        // This is the critical section: we must get the local branch
+                        // to exactly match the remote before rsyncing source files.
+                        let branchSwitched = false
+                        if (isEmptyRepo) {
+                            await $`git checkout -b ${effectiveBranch}`.cwd(stageDir).quiet().nothrow()
+                            console.log(`Initialized branch '${effectiveBranch}' on empty repository`)
+                            branchSwitched = true
+                        } else {
+                            // Discard any uncommitted changes from previous runs
+                            await $`git checkout .`.cwd(stageDir).quiet().nothrow()
+                            await $`git clean -fd`.cwd(stageDir).quiet().nothrow()
+
+                            const currentBranch = await this.ProjectRepository.getBranch({ rootDir: stageDir })
+
+                            if (currentBranch !== effectiveBranch) {
+                                console.log(`Switching from branch '${currentBranch}' to '${effectiveBranch}' ...`)
+
+                                // Check if branch exists locally
+                                const localBranchCheck = await $`git branch --list ${effectiveBranch}`.cwd(stageDir).quiet().nothrow()
+                                const localBranchExists = localBranchCheck.text().trim().length > 0
+
+                                if (localBranchExists) {
+                                    await $`git checkout ${effectiveBranch}`.cwd(stageDir).quiet()
+                                } else {
+                                    // Check if branch exists on remote
+                                    const remoteBranchCheck = await $`git ls-remote --heads origin ${effectiveBranch}`.cwd(stageDir).quiet().nothrow()
+                                    const remoteBranchExists = remoteBranchCheck.text().trim().length > 0
+
+                                    if (remoteBranchExists) {
+                                        await $`git checkout -b ${effectiveBranch} origin/${effectiveBranch}`.cwd(stageDir).quiet()
+                                    } else {
+                                        await $`git checkout -b ${effectiveBranch}`.cwd(stageDir).quiet()
+                                        console.log(`Created new branch '${effectiveBranch}'`)
+                                    }
+                                }
+                                branchSwitched = true
+                            }
+
+                            // Hard-reset local branch to match remote (if remote branch exists).
+                            // This ensures the local stage repo always starts from the true
+                            // remote state, regardless of what happened in previous runs.
+                            const remoteRef = `origin/${effectiveBranch}`
+                            const remoteRefCheck = await $`git rev-parse --verify ${remoteRef}`.cwd(stageDir).quiet().nothrow()
+                            if (remoteRefCheck.exitCode === 0) {
+                                const localHead = (await $`git rev-parse HEAD`.cwd(stageDir).quiet()).text().trim()
+                                const remoteHead = remoteRefCheck.text().trim()
+                                if (localHead !== remoteHead) {
+                                    await $`git reset --hard ${remoteRef}`.cwd(stageDir).quiet()
+                                    console.log(`Synced local '${effectiveBranch}' to remote (${remoteHead.slice(0, 8)})`)
+                                }
+                            }
+
+                            if (branchSwitched) {
+                                console.log(`On branch '${effectiveBranch}'`)
+                            } else if (targetBranch) {
+                                console.log(`Already on branch '${targetBranch}'`)
+                            }
+                        }
+
+                        // ── 8. Rsync source files into stage repo ───────────────
+                        // Now that the branch is in sync with remote, overlay
+                        // the workspace source files on top.
                         const gitignorePath = join(ctx.repoSourceDir, '.gitignore')
                         await this.ProjectRepository.sync({
                             rootDir: stageDir,
@@ -79,7 +164,7 @@ export async function capsule({
                             excludePatterns: ctx.alwaysIgnore || []
                         })
 
-                        // Check for .env* files in the stage dir — these can leak sensitive information
+                        // ── 9. Security check: .env* files ──────────────────────
                         const envFilesResult = await $`find . -name '.env*' -not -path './.git/*'`.cwd(stageDir).quiet().nothrow()
                         const envFiles = envFilesResult.text().trim().split('\n').filter(Boolean)
                         if (envFiles.length > 0) {
@@ -94,7 +179,7 @@ export async function capsule({
                             process.exit(1)
                         }
 
-                        // Generate files from config properties starting with '/'
+                        // ── 10. Generate files from config ──────────────────────
                         // This happens AFTER rsync so generated files are not overwritten
                         if (config.config) {
                             for (const [key, value] of Object.entries(config.config)) {
@@ -127,52 +212,7 @@ export async function capsule({
                             }
                         }
 
-                        // Determine target branch (defaults to 'main' when --branch is not specified)
-                        const targetBranch = ctx.options.branch
-                        const effectiveBranch = targetBranch || 'main'
-
-                        // Detect if the stage repo is on a different branch than the target
-                        // Also detect empty repos that were cloned in a previous run but still have no commits
-                        const headCheck = await $`git rev-parse HEAD`.cwd(stageDir).quiet().nothrow()
-                        const isEmptyRepo = isNewEmptyRepo || headCheck.exitCode !== 0
-                        let branchSwitched = false
-                        if (isEmptyRepo) {
-                            // Empty repo has no HEAD — create the target branch directly
-                            // (git checkout -b works even without commits as an orphan branch)
-                            await $`git checkout -b ${effectiveBranch}`.cwd(stageDir).quiet().nothrow()
-                            console.log(`Initialized branch '${effectiveBranch}' on empty repository`)
-                            branchSwitched = true
-                        } else {
-                            const currentBranch = await this.ProjectRepository.getBranch({ rootDir: stageDir })
-                            if (currentBranch !== effectiveBranch) {
-                                console.log(`Switching from branch '${currentBranch}' to '${effectiveBranch}' ...`)
-                                // Check if branch exists locally
-                                const localBranchCheck = await $`git branch --list ${effectiveBranch}`.cwd(stageDir).quiet().nothrow()
-                                const localBranchExists = localBranchCheck.text().trim().length > 0
-
-                                if (localBranchExists) {
-                                    await $`git checkout ${effectiveBranch}`.cwd(stageDir).quiet()
-                                    console.log(`Checked out existing local branch '${effectiveBranch}'`)
-                                } else {
-                                    // Check if branch exists on remote
-                                    const remoteBranchCheck = await $`git ls-remote --heads origin ${effectiveBranch}`.cwd(stageDir).quiet().nothrow()
-                                    const remoteBranchExists = remoteBranchCheck.text().trim().length > 0
-
-                                    if (remoteBranchExists) {
-                                        await $`git checkout -b ${effectiveBranch} origin/${effectiveBranch}`.cwd(stageDir).quiet()
-                                        console.log(`Checked out remote branch '${effectiveBranch}'`)
-                                    } else {
-                                        await $`git checkout -b ${effectiveBranch}`.cwd(stageDir).quiet()
-                                        console.log(`Created new branch '${effectiveBranch}'`)
-                                    }
-                                }
-                                branchSwitched = true
-                            } else if (targetBranch) {
-                                console.log(`Already on branch '${targetBranch}'`)
-                            }
-                        }
-
-                        // Handle --dangerously-squash-to-commit on the stage repo
+                        // ── 11. Handle --dangerously-squash-to-commit ───────────
                         let squashedToCommit = false
                         const squashToCommit = ctx.options.dangerouslySquashToCommit
                         if (squashToCommit) {

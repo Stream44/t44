@@ -1,5 +1,7 @@
 
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { readFile, access } from 'fs/promises'
+import { constants } from 'fs'
 import chalk from 'chalk'
 
 // ── Provider Lifecycle ─────────────────────────────────────────────
@@ -159,6 +161,14 @@ export async function capsule({
                                 const stepText = deprovision ? 'Deprovisioning' : 'Deploying'
                                 console.log(`\n=> ${stepText} provider project alias '${alias}' for workspace project '${projectName}' ...\n`)
 
+                                // ── Build step (deploy only) ──────────────────
+                                if (!deprovision) {
+                                    const aliasConfig = projectConfig[alias]
+                                    if (aliasConfig.sourceDir) {
+                                        await runBuildIfAvailable(aliasConfig.sourceDir)
+                                    }
+                                }
+
                                 await callProvidersForAlias(step, projectConfig[alias], { alias, projectName })
 
                                 console.log(`\n<= ${stepText} of provider project alias '${alias}' for workspace project '${projectName}' done.\n`)
@@ -316,6 +326,67 @@ function formatDuration(status: any): string {
     if (diffHours > 0) return chalk.gray(` (${diffHours}h ago)`)
     if (diffMinutes > 0) return chalk.gray(` (${diffMinutes}m ago)`)
     return chalk.gray(' (just now)')
+}
+
+
+// ── Build step: find closest package.json with build script ───────
+async function runBuildIfAvailable(sourceDir: string): Promise<void> {
+    // Walk up from sourceDir to find the closest package.json with a build script
+    let currentDir = sourceDir
+
+    // Normalize: if sourceDir ends with a known build output folder, start from parent
+    const buildOutputFolders = ['dist', 'build', 'out', '.next', '.output']
+    const lastSegment = sourceDir.split('/').pop()
+    if (lastSegment && buildOutputFolders.includes(lastSegment)) {
+        currentDir = dirname(sourceDir)
+    }
+
+    // Walk up looking for package.json with build script
+    const maxDepth = 5
+    for (let i = 0; i < maxDepth; i++) {
+        const pkgPath = join(currentDir, 'package.json')
+        try {
+            await access(pkgPath, constants.F_OK)
+            const pkgContent = await readFile(pkgPath, 'utf-8')
+            const pkg = JSON.parse(pkgContent)
+
+            if (pkg.scripts?.build) {
+                console.log(chalk.cyan(`Building ${pkg.name || currentDir} ...`))
+                console.log(chalk.gray(`   Directory: ${currentDir}`))
+                console.log(chalk.gray(`   Script:    ${pkg.scripts.build}\n`))
+
+                const proc = Bun.spawn(['bun', 'run', 'build'], {
+                    cwd: currentDir,
+                    stdin: 'inherit',
+                    stdout: 'inherit',
+                    stderr: 'inherit'
+                })
+
+                const exitCode = await proc.exited
+                if (exitCode !== 0) {
+                    throw new Error(`Build failed with exit code ${exitCode}`)
+                }
+
+                console.log(chalk.green(`Build complete.\n`))
+                return
+            }
+        } catch (err: any) {
+            // If it's our own error (build failed), rethrow
+            if (err.message?.includes('Build failed')) {
+                throw err
+            }
+            // Otherwise, package.json doesn't exist or isn't valid, continue walking up
+        }
+
+        const parentDir = dirname(currentDir)
+        if (parentDir === currentDir) {
+            // Reached filesystem root
+            break
+        }
+        currentDir = parentDir
+    }
+
+    // No build script found - that's okay, just skip
 }
 
 
