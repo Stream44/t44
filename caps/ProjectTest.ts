@@ -123,6 +123,10 @@ export async function capsule({
                     type: CapsulePropertyTypes.Literal,
                     value: [] as string[],
                 },
+                _capturedDescribeStack: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: null as string[] | null,
+                },
                 _snapshotCounters: {
                     type: CapsulePropertyTypes.Literal,
                     value: new Map<string, number>(),
@@ -196,7 +200,9 @@ export async function capsule({
                         const expect = this.bunTest.expect
 
                         // Build the snapshot key from describe stack + current it name
-                        const parts = [...this._describeStack]
+                        // Use captured stack from it() if available, otherwise fall back to _describeStack
+                        const stack = this._capturedDescribeStack ?? this._describeStack
+                        const parts = [...stack]
                         if (this._currentItName) parts.push(this._currentItName)
                         const baseKey = parts.join(' > ')
 
@@ -282,20 +288,22 @@ export async function capsule({
                         const self = this
                         const bunTestModule = this.bunTest
                         const describeMethod = (name: string, fn: () => void) => {
-                            return bunTestModule.describe(name, async () => {
+                            // Wrap in bun's describe - push/pop happens INSIDE the callback
+                            // because bun executes describe callbacks asynchronously
+                            return bunTestModule.describe(name, () => {
                                 self._describeStack.push(name)
                                 try {
-                                    await fn()
+                                    fn()
                                 } finally {
                                     self._describeStack.pop()
                                 }
                             })
                         }
                         describeMethod.skip = (name: string, fn: () => void) => {
-                            return bunTestModule.describe.skip(name, async () => {
+                            return bunTestModule.describe.skip(name, () => {
                                 self._describeStack.push(name)
                                 try {
-                                    await fn()
+                                    fn()
                                 } finally {
                                     self._describeStack.pop()
                                 }
@@ -310,7 +318,11 @@ export async function capsule({
                         const self = this
                         const bunTestModule = this.bunTest
                         const itMethod = (name: string, fn: () => void | Promise<void>, options?: number | BunTest.TestOptions) => {
+                            // Capture describe stack at registration time (synchronous)
+                            const capturedStack = [...self._describeStack]
                             return bunTestModule.it(name, async () => {
+                                // Set captured stack for snapshot key generation
+                                self._capturedDescribeStack = capturedStack
                                 self._currentItName = name
                                 try {
                                     await fn()
@@ -326,16 +338,20 @@ export async function capsule({
                                     }
                                     throw error
                                 } finally {
+                                    self._capturedDescribeStack = null
                                     self._currentItName = null
                                 }
                             }, options)
                         }
                         itMethod.skip = (name: string, fn: () => void | Promise<void>, options?: number | BunTest.TestOptions) => {
+                            const capturedStack = [...self._describeStack]
                             return bunTestModule.it.skip(name, async () => {
+                                self._capturedDescribeStack = capturedStack
                                 self._currentItName = name
                                 try {
                                     await fn()
                                 } finally {
+                                    self._capturedDescribeStack = null
                                     self._currentItName = null
                                 }
                             }, options)
