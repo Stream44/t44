@@ -192,7 +192,7 @@ export async function capsule({
                     value: async function (this: any, actual: any, opts?: { strict?: boolean }): Promise<void> {
                         const strict = opts?.strict === true
 
-                        const isUpdate = process.env.UPDATE_SNAPSHOTS === '1' || process.argv.includes('--update-snapshots') || process.argv.includes('-u')
+                        const isUpdate = process.env.UPDATE_SNAPSHOTS === '1' || process.env.BUN_UPDATE_SNAPSHOTS === '1' || process.argv.includes('--update-snapshots') || process.argv.includes('-u')
                         const expect = this.bunTest.expect
 
                         // Build the snapshot key from describe stack + current it name
@@ -205,15 +205,37 @@ export async function capsule({
                         this._snapshotCounters.set(baseKey, count)
                         const snapshotKey = `${baseKey} #${count}`
 
-                        // Stabilize the actual value: sort all keys/arrays deterministically
-                        const stabilize = (obj: any): any => JSON.parse(stringify(obj) || 'null')
-                        const stabilized = stabilize(actual)
+                        // Stabilize for storage: sort object keys only (preserves array order in snapshots)
+                        const stabilizeForStorage = (obj: any): any => JSON.parse(stringify(obj) || 'null')
+
+                        // Deep sort for comparison: sort both object keys AND array elements recursively
+                        const deepSortForComparison = (obj: any): any => {
+                            if (obj === null || obj === undefined) return obj
+                            if (Array.isArray(obj)) {
+                                // Recursively sort array elements, then sort the array itself
+                                const sorted = obj.map(deepSortForComparison)
+                                // Sort arrays by their JSON representation for deterministic ordering
+                                return sorted.sort((a, b) => {
+                                    const aStr = JSON.stringify(a) ?? ''
+                                    const bStr = JSON.stringify(b) ?? ''
+                                    return aStr.localeCompare(bStr)
+                                })
+                            }
+                            if (typeof obj === 'object') {
+                                const sorted: Record<string, any> = {}
+                                for (const key of Object.keys(obj).sort()) {
+                                    sorted[key] = deepSortForComparison(obj[key])
+                                }
+                                return sorted
+                            }
+                            return obj
+                        }
 
                         const snapshots = await this._loadSnapshots()
 
                         if (isUpdate || !(snapshotKey in snapshots)) {
-                            // Write mode: store the stabilized value
-                            snapshots[snapshotKey] = stabilized
+                            // Write mode: store with sorted keys but preserve array order
+                            snapshots[snapshotKey] = stabilizeForStorage(actual)
                             this._snapshotDirty = true
                             return
                         }
@@ -222,13 +244,15 @@ export async function capsule({
                         const stored = snapshots[snapshotKey]
 
                         if (strict) {
-                            // Strict mode: exact deep equality (order matters)
+                            // Strict mode: exact deep equality (order matters for both keys and arrays)
+                            const stabilized = stabilizeForStorage(actual)
                             expect(stabilized).toEqual(stored)
                         } else {
                             // Default mode: sort-order-ignorant deep comparison
-                            // Both sides are stabilized through json-stable-stringify
-                            const storedStabilized = stabilize(stored)
-                            expect(stabilized).toEqual(storedStabilized)
+                            // Both sides are deeply sorted (keys AND arrays)
+                            const actualSorted = deepSortForComparison(actual)
+                            const storedSorted = deepSortForComparison(stored)
+                            expect(actualSorted).toEqual(storedSorted)
                         }
                     }
                 },
