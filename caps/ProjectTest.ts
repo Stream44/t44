@@ -191,7 +191,8 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, actual: any, opts?: { strict?: boolean }): Promise<void> {
                         const strict = opts?.strict === true
-                        const isUpdate = process.argv.includes('--update-snapshots') || process.argv.includes('-u')
+
+                        const isUpdate = process.env.UPDATE_SNAPSHOTS === '1' || process.argv.includes('--update-snapshots') || process.argv.includes('-u')
                         const expect = this.bunTest.expect
 
                         // Build the snapshot key from describe stack + current it name
