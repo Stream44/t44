@@ -1,7 +1,9 @@
 import type * as BunTest from 'bun:test'
 import { config as loadDotenv } from 'dotenv'
 import { join, dirname, basename } from 'path'
-import { mkdir } from 'fs/promises'
+import { mkdir, readFile, writeFile } from 'fs/promises'
+import { existsSync } from 'fs'
+import stringify from 'json-stable-stringify'
 
 // Global cache for loaded env files (this is fine as a cache)
 const loadedEnvFiles = new Set<string>()
@@ -106,18 +108,152 @@ export async function capsule({
                         await this.emptyWorkbenchDir()
                     }
                 },
+                RegisterSnapshotFlush: {
+                    type: CapsulePropertyTypes.Init,
+                    value: function (this: any) {
+                        if (!this.bunTest) return
+                        const self = this
+                        this.bunTest.afterAll(async () => {
+                            await self._flushSnapshots()
+                        })
+                    }
+                },
+                // ── Snapshot tracking state ──────────────────────────
+                _describeStack: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: [] as string[],
+                },
+                _snapshotCounters: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: new Map<string, number>(),
+                },
+                _snapshotData: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: null as Record<string, any> | null,
+                },
+                _snapshotFile: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: null as string | null,
+                },
+                _snapshotDirty: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: false,
+                },
+                _currentItName: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: null as string | null,
+                },
+                _getSnapshotFile: {
+                    type: CapsulePropertyTypes.Function,
+                    value: function (this: any): string {
+                        if (this._snapshotFile) return this._snapshotFile
+                        const moduleFilepath = this['#@stream44.studio/encapsulate/structs/Capsule'].rootCapsule.moduleFilepath
+                        const dir = dirname(moduleFilepath)
+                        const base = basename(moduleFilepath)
+                        this._snapshotFile = join(dir, '__snapshots__', base + '.snap.json')
+                        return this._snapshotFile
+                    }
+                },
+                _loadSnapshots: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any): Promise<Record<string, any>> {
+                        if (this._snapshotData !== null) return this._snapshotData
+                        const file = this._getSnapshotFile()
+                        try {
+                            if (existsSync(file)) {
+                                const raw = await readFile(file, 'utf-8')
+                                this._snapshotData = JSON.parse(raw)
+                            } else {
+                                this._snapshotData = {}
+                            }
+                        } catch {
+                            this._snapshotData = {}
+                        }
+                        return this._snapshotData!
+                    }
+                },
+                _flushSnapshots: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any): Promise<void> {
+                        if (!this._snapshotDirty) return
+                        const file = this._getSnapshotFile()
+                        await mkdir(dirname(file), { recursive: true })
+                        // Sort top-level keys for deterministic file output
+                        const sorted: Record<string, any> = {}
+                        for (const k of Object.keys(this._snapshotData!).sort()) {
+                            sorted[k] = this._snapshotData![k]
+                        }
+                        await writeFile(file, JSON.stringify(sorted, null, 2) + '\n', 'utf-8')
+                        this._snapshotDirty = false
+                    }
+                },
+                expectSnapshotMatch: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, actual: any, opts?: { strict?: boolean }): Promise<void> {
+                        const strict = opts?.strict === true
+                        const isUpdate = process.argv.includes('--update-snapshots') || process.argv.includes('-u')
+                        const expect = this.bunTest.expect
+
+                        // Build the snapshot key from describe stack + current it name
+                        const parts = [...this._describeStack]
+                        if (this._currentItName) parts.push(this._currentItName)
+                        const baseKey = parts.join(' > ')
+
+                        // Increment counter for this key (supports multiple snapshots per test)
+                        const count = (this._snapshotCounters.get(baseKey) || 0) + 1
+                        this._snapshotCounters.set(baseKey, count)
+                        const snapshotKey = `${baseKey} #${count}`
+
+                        // Stabilize the actual value: sort all keys/arrays deterministically
+                        const stabilize = (obj: any): any => JSON.parse(stringify(obj) || 'null')
+                        const stabilized = stabilize(actual)
+
+                        const snapshots = await this._loadSnapshots()
+
+                        if (isUpdate || !(snapshotKey in snapshots)) {
+                            // Write mode: store the stabilized value
+                            snapshots[snapshotKey] = stabilized
+                            this._snapshotDirty = true
+                            return
+                        }
+
+                        // Compare mode
+                        const stored = snapshots[snapshotKey]
+
+                        if (strict) {
+                            // Strict mode: exact deep equality (order matters)
+                            expect(stabilized).toEqual(stored)
+                        } else {
+                            // Default mode: sort-order-ignorant deep comparison
+                            // Both sides are stabilized through json-stable-stringify
+                            const storedStabilized = stabilize(stored)
+                            expect(stabilized).toEqual(storedStabilized)
+                        }
+                    }
+                },
                 describe: {
                     type: CapsulePropertyTypes.GetterFunction,
                     value: function (this: any) {
+                        const self = this
                         const bunTestModule = this.bunTest
                         const describeMethod = (name: string, fn: () => void) => {
                             return bunTestModule.describe(name, async () => {
-                                await fn()
+                                self._describeStack.push(name)
+                                try {
+                                    await fn()
+                                } finally {
+                                    self._describeStack.pop()
+                                }
                             })
                         }
                         describeMethod.skip = (name: string, fn: () => void) => {
                             return bunTestModule.describe.skip(name, async () => {
-                                await fn()
+                                self._describeStack.push(name)
+                                try {
+                                    await fn()
+                                } finally {
+                                    self._describeStack.pop()
+                                }
                             })
                         }
                         return describeMethod
@@ -126,9 +262,11 @@ export async function capsule({
                 it: {
                     type: CapsulePropertyTypes.GetterFunction,
                     value: function (this: any) {
+                        const self = this
                         const bunTestModule = this.bunTest
                         const itMethod = (name: string, fn: () => void | Promise<void>, options?: number | BunTest.TestOptions) => {
                             return bunTestModule.it(name, async () => {
+                                self._currentItName = name
                                 try {
                                     await fn()
                                 } catch (error: any) {
@@ -142,12 +280,19 @@ export async function capsule({
                                         return
                                     }
                                     throw error
+                                } finally {
+                                    self._currentItName = null
                                 }
                             }, options)
                         }
                         itMethod.skip = (name: string, fn: () => void | Promise<void>, options?: number | BunTest.TestOptions) => {
                             return bunTestModule.it.skip(name, async () => {
-                                await fn()
+                                self._currentItName = name
+                                try {
+                                    await fn()
+                                } finally {
+                                    self._currentItName = null
+                                }
                             }, options)
                         }
                         return itMethod
