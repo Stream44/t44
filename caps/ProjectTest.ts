@@ -208,13 +208,15 @@ export async function capsule({
                         // Stabilize for storage: sort object keys only (preserves array order in snapshots)
                         const stabilizeForStorage = (obj: any): any => JSON.parse(stringify(obj) || 'null')
 
+                        // Detect hash-like strings (32+ hex chars)
+                        const isHashLike = (s: string): boolean => /^[0-9a-f]{32,}$/i.test(s)
+
                         // Deep sort for comparison: sort both object keys AND array elements recursively
+                        // Also normalizes hash-like keys/values that differ between machines
                         const deepSortForComparison = (obj: any): any => {
                             if (obj === null || obj === undefined) return obj
                             if (Array.isArray(obj)) {
-                                // Recursively sort array elements, then sort the array itself
                                 const sorted = obj.map(deepSortForComparison)
-                                // Sort arrays by their JSON representation for deterministic ordering
                                 return sorted.sort((a, b) => {
                                     const aStr = JSON.stringify(a) ?? ''
                                     const bStr = JSON.stringify(b) ?? ''
@@ -222,11 +224,29 @@ export async function capsule({
                                 })
                             }
                             if (typeof obj === 'object') {
+                                const keys = Object.keys(obj)
+                                const hasHashKeys = keys.some(isHashLike)
+
+                                if (hasHashKeys) {
+                                    // For objects with hash-like keys, convert to a sorted array of values
+                                    // so that different hash keys with same values still match
+                                    const entries = keys.map(k => deepSortForComparison(obj[k]))
+                                    return entries.sort((a, b) => {
+                                        const aStr = JSON.stringify(a) ?? ''
+                                        const bStr = JSON.stringify(b) ?? ''
+                                        return aStr.localeCompare(bStr)
+                                    })
+                                }
+
                                 const sorted: Record<string, any> = {}
-                                for (const key of Object.keys(obj).sort()) {
+                                for (const key of keys.sort()) {
                                     sorted[key] = deepSortForComparison(obj[key])
                                 }
                                 return sorted
+                            }
+                            // Normalize hash-like string values to a placeholder
+                            if (typeof obj === 'string' && isHashLike(obj)) {
+                                return '<HASH>'
                             }
                             return obj
                         }

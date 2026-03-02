@@ -303,12 +303,12 @@ export async function capsule({
                         }
 
                         // ══════════════════════════════════════════════════════
-                        // INTERNAL: Check for .rej files (unresolved patch conflicts)
+                        // INTERNAL: Check for .rej / .orig files (unresolved patch conflicts)
                         // ══════════════════════════════════════════════════════
                         const allRejFiles: string[] = []
                         for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                             const projectSourceDir = join((repoConfig as any).sourceDir)
-                            const rejFiles = await glob('**/*.rej', {
+                            const rejFiles = await glob('**/*.{rej,orig}', {
                                 cwd: projectSourceDir,
                                 absolute: false,
                                 onlyFiles: true,
@@ -321,13 +321,13 @@ export async function capsule({
                         }
 
                         if (allRejFiles.length > 0) {
-                            console.log(chalk.red('\n[t44] ERROR: Found unresolved patch conflict files (.rej)\n'))
-                            console.log(chalk.red('The following .rej files must be resolved and removed before publishing:\n'))
+                            console.log(chalk.red('\n[t44] ERROR: Found unresolved patch conflict files (.rej / .orig)\n'))
+                            console.log(chalk.red('The following files must be resolved and removed before publishing:\n'))
                             for (const rejFile of allRejFiles) {
                                 console.log(chalk.red(`   • ${rejFile}`))
                             }
                             console.log(chalk.yellow('\nThese files are created when `patch` fails to apply a hunk cleanly.'))
-                            console.log(chalk.yellow('Review each .rej file, manually apply the changes, then delete the .rej files.\n'))
+                            console.log(chalk.yellow('Review each file, manually apply the changes, then delete them.\n'))
                             process.exit(1)
                         }
 
