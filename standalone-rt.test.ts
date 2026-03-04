@@ -3,6 +3,8 @@
 import * as bunTest from 'bun:test'
 import { describe, it, expect } from 'bun:test'
 import { run } from './standalone-rt'
+import * as fs from 'fs/promises'
+import { join } from 'path'
 
 // Top-level run() — shared across all tests (e.g. for workbenchDir)
 const { test: { workbenchDir } } = await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
@@ -146,5 +148,122 @@ describe('standalone-rt multiple run() calls', () => {
     it('workbenchDir from top-level run() should still be available', () => {
         expect(workbenchDir).toBeDefined();
         expect(typeof workbenchDir).toBe('string');
+    });
+
+    it('should write .events.json when captureEvents is true', async () => {
+        // Clean up any existing spine-instances directory
+        const spineInstancesDir = join(import.meta.dir, '.~o/encapsulate.dev/spine-instances');
+        try {
+            await fs.rm(spineInstancesDir, { recursive: true });
+        } catch { }
+
+        const result = await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
+            const spine = await encapsulate({
+                '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
+                    '#@stream44.studio/encapsulate/structs/Capsule': {},
+                    '#': {
+                        counter: {
+                            type: CapsulePropertyTypes.Literal,
+                            value: 0,
+                        },
+                        increment: {
+                            type: CapsulePropertyTypes.Function,
+                            value: function (this: any) {
+                                this.counter++;
+                                return this.counter;
+                            }
+                        }
+                    }
+                }
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.events' })
+            return { spine }
+        }, async ({ spine, apis }: any) => {
+            const api = apis[spine.capsuleSourceLineRef];
+            // Trigger some membrane events
+            api.increment();
+            api.increment();
+            const finalCount = api.counter;
+            return { finalCount, spineRef: spine.capsuleSourceLineRef };
+        }, { importMeta: import.meta, runFromSnapshot: true, captureEvents: true })
+
+        expect(result.finalCount).toBe(2);
+
+        // Verify .events.json was written
+        const dirs = await fs.readdir(spineInstancesDir);
+        expect(dirs.length).toBeGreaterThan(0);
+
+        const eventsFile = join(spineInstancesDir, dirs[0], 'root-capsule.events.json');
+        await fs.access(eventsFile); // Should not throw
+
+        const eventsContent = await fs.readFile(eventsFile, 'utf-8');
+        const events = JSON.parse(eventsContent);
+
+        expect(Array.isArray(events)).toBe(true);
+        expect(events.length).toBeGreaterThan(0);
+
+        // Verify event structure
+        const callEvents = events.filter((e: any) => e.event === 'call');
+        expect(callEvents.length).toBe(2); // Two increment() calls
+
+        const getEvents = events.filter((e: any) => e.event === 'get');
+        expect(getEvents.length).toBeGreaterThan(0); // counter property reads
+
+        // Verify membrane property is captured
+        for (const event of events) {
+            expect(event.membrane).toBeDefined();
+            expect(['external', 'internal']).toContain(event.membrane);
+        }
+
+        // Verify we have both internal and external events
+        const externalEvents = events.filter((e: any) => e.membrane === 'external');
+        const internalEvents = events.filter((e: any) => e.membrane === 'internal');
+        expect(externalEvents.length).toBeGreaterThan(0);
+        expect(internalEvents.length).toBeGreaterThan(0);
+
+        // Clean up
+        await fs.rm(spineInstancesDir, { recursive: true });
+    });
+
+    it('should NOT write .events.json when captureEvents is false/undefined', async () => {
+        // Clean up any existing spine-instances directory
+        const spineInstancesDir = join(import.meta.dir, '.~o/encapsulate.dev/spine-instances');
+        try {
+            await fs.rm(spineInstancesDir, { recursive: true });
+        } catch { }
+
+        await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
+            const spine = await encapsulate({
+                '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
+                    '#@stream44.studio/encapsulate/structs/Capsule': {},
+                    '#': {
+                        value: {
+                            type: CapsulePropertyTypes.Literal,
+                            value: 'test',
+                        },
+                    }
+                }
+            }, { importMeta: import.meta, importStack: makeImportStack(), capsuleName: '@stream44.studio/t44/standalone-rt.test.no-events' })
+            return { spine }
+        }, async ({ spine, apis }: any) => {
+            return apis[spine.capsuleSourceLineRef].value;
+        }, { importMeta: import.meta, runFromSnapshot: false }) // No captureEvents
+
+        // Verify .events.json was NOT written (directory may or may not exist)
+        try {
+            const dirs = await fs.readdir(spineInstancesDir);
+            for (const dir of dirs) {
+                const eventsFile = join(spineInstancesDir, dir, 'root-capsule.events.json');
+                try {
+                    await fs.access(eventsFile);
+                    throw new Error('events.json should not exist');
+                } catch (e: any) {
+                    if (e.message === 'events.json should not exist') throw e;
+                    // Expected: file does not exist
+                }
+            }
+        } catch (e: any) {
+            // Directory doesn't exist - that's fine
+            if (e.code !== 'ENOENT') throw e;
+        }
     });
 });

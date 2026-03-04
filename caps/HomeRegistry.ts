@@ -198,7 +198,7 @@ export async function capsule({
                         const { readdir, readFile } = await import('fs/promises')
                         const { join } = await import('path')
                         const rootDir = await this.rootDir
-                        const keyDir = join(rootDir, '@t44.sh~t44~structs~WorkspaceKey')
+                        const keyDir = join(rootDir, '@stream44.studio~t44~structs~WorkspaceKey')
                         try {
                             const files = await readdir(keyDir)
                             const keys: Array<{ name: string; did: string; createdAt?: string }> = []
@@ -250,7 +250,7 @@ export async function capsule({
                         const { readdir, readFile } = await import('fs/promises')
                         const { join } = await import('path')
                         const rootDir = await this.rootDir
-                        const rackDir = join(rootDir, '@t44.sh~t44~structs~ProjectRack')
+                        const rackDir = join(rootDir, '@stream44.studio~t44~structs~ProjectRack')
                         try {
                             const files = await readdir(rackDir)
                             const racks: Array<{ name: string; did: string; createdAt?: string }> = []

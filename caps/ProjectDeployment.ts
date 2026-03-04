@@ -65,7 +65,7 @@ export async function capsule({
                         const workspaceConfig = await this.$WorkspaceConfig.config
                         const getProjectionDir = (capsuleName: string) => join(
                             workspaceConfig.rootDir,
-                            '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectDeployment',
+                            '.~o/workspace.foundation/@stream44.studio~t44~caps~ProjectDeployment',
                             capsuleName.replace(/\//g, '~')
                         )
 

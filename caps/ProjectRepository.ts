@@ -30,7 +30,7 @@ export async function capsule({
                         const normalizedUri = repoUri.replace(/[\/]/g, '~')
                         return join(
                             this.WorkspaceConfig.workspaceRootDir,
-                            '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectRepository/stage',
+                            '.~o/workspace.foundation/@stream44.studio~t44~caps~ProjectRepository/stage',
                             normalizedUri
                         )
                     }

@@ -189,7 +189,7 @@ export async function capsule({
                         const pullingApi = {
                             getProjectionDir: (capsuleName: string) => join(
                                 this.WorkspaceConfig.workspaceRootDir,
-                                '.~o/workspace.foundation/@t44.sh~t44~caps~ProjectPulling',
+                                '.~o/workspace.foundation/@stream44.studio~t44~caps~ProjectPulling',
                                 capsuleName.replace(/\//g, '~')
                             ),
                         }

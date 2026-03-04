@@ -47,14 +47,14 @@ export async function capsule({
                         // Build resolver context with all required paths
                         const registryDir = await this.Home.registryDir
                         const foundationDir = join(workspaceRootDir, '.~o', 'workspace.foundation')
-                        const homeRegistryConnectionsDir = join(registryDir, '@t44.sh~t44~caps~WorkspaceConnection', workspaceName)
+                        const homeRegistryConnectionsDir = join(registryDir, '@stream44.studio~t44~caps~WorkspaceConnection', workspaceName)
 
                         const resolver = Resolver({
                             workspaceRootDir,
                             workspaceName,
-                            schemasDir: join(foundationDir, '@t44.sh~t44~caps~JsonSchemas'),
-                            factsDir: join(foundationDir, '@t44.sh~t44~caps~WorkspaceEntityFact'),
-                            metaCacheDir: join(foundationDir, '@t44.sh~t44~caps~WorkspaceEntityFact', '@t44.sh~t44~structs~WorkspaceConfigFileMeta'),
+                            schemasDir: join(foundationDir, '@stream44.studio~t44~caps~JsonSchemas'),
+                            factsDir: join(foundationDir, '@stream44.studio~t44~caps~WorkspaceEntityFact'),
+                            metaCacheDir: join(foundationDir, '@stream44.studio~t44~caps~WorkspaceEntityFact', '@stream44.studio~t44~structs~WorkspaceConfigFileMeta'),
                             homeRegistryConnectionsDir
                         })
 
@@ -100,7 +100,7 @@ export async function capsule({
 
                         // Build schema lookup: entity name (without #) → schema file path
                         const schemaMap = new Map<string, string>()
-                        const schemasDir = join(workspaceRootDir, '.~o', 'workspace.foundation', '@t44.sh~t44~caps~JsonSchemas')
+                        const schemasDir = join(workspaceRootDir, '.~o', 'workspace.foundation', '@stream44.studio~t44~caps~JsonSchemas')
                         for (const [schemaId] of schemas) {
                             const entityName = schemaId.replace(/\.v\d+$/, '')
                             // Schema files don't include version in filename, only in $id

@@ -68,6 +68,19 @@ export async function capsule({
                                 modified = true
                             }
 
+                            // Also replace tilde-separated variant of scoped names
+                            // (e.g. @stream44.studio~FramespaceGenesis → @stream44.studio~FramespaceGenesis)
+                            const pubTilde = publicName.replace(/^(@[^/]+)\//, '$1~')
+                            if (pubTilde !== publicName) {
+                                const wsTilde = workspaceName.replace(/^(@[^/]+)\//, '$1~')
+                                const tildeRegex = new RegExp(pubTilde.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                                const replacedTilde = content.replace(tildeRegex, wsTilde)
+                                if (replacedTilde !== content) {
+                                    content = replacedTilde
+                                    modified = true
+                                }
+                            }
+
                             // Also replace regex-escaped versions of the public name
                             // (e.g. @stream44\.studio\/dco in test patterns)
                             const pubEscaped = publicName.replace(/[.*+?^${}()|[\]/\\]/g, '\\$&')
@@ -124,6 +137,19 @@ export async function capsule({
                                                 if (replaced !== content) {
                                                     content = replaced
                                                     modified = true
+                                                }
+
+                                                // Also replace tilde-separated variant of scoped names
+                                                // (e.g. @stream44.studio~FramespaceGenesis → @stream44.studio~FramespaceGenesis)
+                                                const wsTilde = workspaceName.replace(/^(@[^/]+)\//, '$1~')
+                                                if (wsTilde !== workspaceName) {
+                                                    const pubTilde = publicName.replace(/^(@[^/]+)\//, '$1~')
+                                                    const tildeRegex = new RegExp(wsTilde.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                                                    const replacedTilde = content.replace(tildeRegex, pubTilde)
+                                                    if (replacedTilde !== content) {
+                                                        content = replacedTilde
+                                                        modified = true
+                                                    }
                                                 }
 
                                                 // Also replace regex-escaped versions of the workspace name

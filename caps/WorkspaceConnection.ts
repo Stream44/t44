@@ -77,7 +77,7 @@ export async function capsule({
                         const workspaceConfigStruct = workspaceConfig?.['#@stream44.studio/t44/structs/WorkspaceConfig'] || {}
                         const workspaceName = workspaceConfigStruct.name
                         const connectionType = this.capsuleName.replace(/\//g, '~')
-                        return join(registryDir, '@t44.sh~t44~caps~WorkspaceConnection', workspaceName, `${connectionType}.json`)
+                        return join(registryDir, '@stream44.studio~t44~caps~WorkspaceConnection', workspaceName, `${connectionType}.json`)
                     }
                 },
                 getRelativeFilepath: {

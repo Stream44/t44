@@ -696,7 +696,7 @@ async function writeConfigMetadataCache(
     workspaceRootDir: string
 ): Promise<void> {
     const { mkdir, writeFile } = await import('fs/promises')
-    const metaCacheDir = join(workspaceRootDir, '.~o', 'workspace.foundation', '@t44.sh~t44~caps~WorkspaceEntityFact', '@t44.sh~t44~structs~WorkspaceConfigFileMeta')
+    const metaCacheDir = join(workspaceRootDir, '.~o', 'workspace.foundation', '@stream44.studio~t44~caps~WorkspaceEntityFact', '@stream44.studio~t44~structs~WorkspaceConfigFileMeta')
 
     await mkdir(metaCacheDir, { recursive: true })
 
@@ -847,7 +847,7 @@ function resolveSchemaRef(dataFilePath: string, capsuleName: string, workspaceRo
         workspaceRootDir,
         '.~o',
         'workspace.foundation',
-        '@t44.sh~t44~caps~JsonSchemas'
+        '@stream44.studio~t44~caps~JsonSchemas'
     )
     const schemaFilename = capsuleName.replace(/\//g, '~') + '.json'
     const schemaFilePath = join(jsonSchemaDir, schemaFilename)

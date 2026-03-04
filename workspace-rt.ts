@@ -135,7 +135,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
             },
             ['@stream44.studio/t44-ipfs.tech/caps/IpfsWorkbench']: {
                 '#': {
-                    cacheDir: join(workspaceRootDir, '.~o/workspace.foundation', '@t44.sh~t44-ipfs.tech~caps~IpfsWorkbench', 'daemons')
+                    cacheDir: join(workspaceRootDir, '.~o/workspace.foundation', '@stream44.studio~t44-ipfs.tech~caps~IpfsWorkbench', 'daemons')
                 }
             }
         }
