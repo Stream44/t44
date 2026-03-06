@@ -98,7 +98,7 @@ export async function capsule({
                                 parsedUrl = result
                                 matchedProviderConfig = providerConfig
                                 console.log(chalk.green(`   ✓ URL parsed by '${providerConfig.capsule}'`))
-                                console.log(chalk.gray(`     owner: ${result.owner}, repo: ${result.repo}, branch: ${result.branch}\n`))
+                                console.log(chalk.gray(`     owner: ${result.owner}, repo: ${result.repo}, branch: ${result.branch}${result.commit ? `, commit: ${result.commit.slice(0, 8)}` : ''}\n`))
                                 break
                             }
                         }

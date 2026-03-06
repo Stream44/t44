@@ -3,6 +3,7 @@ import { join, dirname } from 'path'
 import { readFile, writeFile, access } from 'fs/promises'
 import glob from 'fast-glob'
 import chalk from 'chalk'
+import semver from 'semver'
 
 function detectIndent(content: string): number {
     const match = content.match(/^\{\s*\n([ \t]+)/)
@@ -442,7 +443,23 @@ async function updateWorkspaceDependencies(
 
                         // Replace workspace package name with public package name
                         const publicDepName = publicNpmPackageNames[workspaceDepName] || depName
-                        updatedDeps[publicDepName] = `^${depPackageJson.version}`
+                        const newVersion = depPackageJson.version
+                        const newSelector = `^${newVersion}`
+
+                        // Check if there's an existing selector in the original dependencies
+                        // that would already satisfy the new version
+                        const existingSelector = (packageJson as any)[depField]?.[publicDepName] ||
+                            (packageJson as any)[depField]?.[depName]
+
+                        if (existingSelector &&
+                            typeof existingSelector === 'string' &&
+                            !existingSelector.startsWith('workspace:') &&
+                            semver.satisfies(newVersion, existingSelector, { includePrerelease: true })) {
+                            // Existing selector already matches the new version, keep it
+                            updatedDeps[publicDepName] = existingSelector
+                        } else {
+                            updatedDeps[publicDepName] = newSelector
+                        }
                     } catch (error) {
                         throw new Error(`Could not resolve workspace dependency ${depName}: ${error}`)
                     }
