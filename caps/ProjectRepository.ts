@@ -60,6 +60,13 @@ export async function capsule({
                         await $`git clean -fd`.cwd(rootDir).quiet().nothrow()
                     }
                 },
+                resetHard: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { rootDir, ref }: { rootDir: string, ref: string }): Promise<void> {
+                        await $`git reset --hard ${ref}`.cwd(rootDir).quiet().nothrow()
+                        await $`git clean -fd`.cwd(rootDir).quiet().nothrow()
+                    }
+                },
                 sync: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir, sourceDir, gitignorePath, excludePatterns }: {
@@ -108,6 +115,21 @@ export async function capsule({
                     }): Promise<void> {
                         await $`git add -A`.cwd(rootDir).quiet()
                         await $`git commit -m ${message}`.cwd(rootDir).quiet().nothrow()
+                    }
+                },
+                getTreeHash: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { rootDir, ref }: { rootDir: string, ref?: string }): Promise<string> {
+                        const target = ref || 'HEAD'
+                        const result = await $`git rev-parse ${target}^{tree}`.cwd(rootDir).quiet().nothrow()
+                        if (result.exitCode !== 0) return ''
+                        return result.text().trim()
+                    }
+                },
+                moveTag: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { rootDir, tag }: { rootDir: string, tag: string }): Promise<void> {
+                        await $`git tag -f ${tag}`.cwd(rootDir).quiet().nothrow()
                     }
                 },
                 getHeadCommit: {

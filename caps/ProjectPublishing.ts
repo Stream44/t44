@@ -336,13 +336,24 @@ export async function capsule({
                         // ══════════════════════════════════════════════════════
                         console.log('[t44] Syncing source directories to stage repos ...\n')
                         const stageSourceDirs: Map<string, string> = new Map()
+                        const repoSourceChanges: Map<string, boolean> = new Map()
 
                         for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                             const projectSourceDir = join((repoConfig as any).sourceDir)
                             const repoSourceDir = await this.ProjectRepository.getStagePath({ repoUri: repoName })
 
                             await this.ProjectRepository.init({ rootDir: repoSourceDir })
-                            await this.ProjectRepository.reset({ rootDir: repoSourceDir })
+
+                            // Reset to 'last-sync' tag if it exists — this is the
+                            // previous raw source state (pre-rename, pre-bump).
+                            // Comparing against this baseline lets git status
+                            // detect real source changes only.
+                            const hasLastSync = await this.ProjectRepository.hasTag({ rootDir: repoSourceDir, tag: 'last-sync' })
+                            if (hasLastSync.exists) {
+                                await this.ProjectRepository.resetHard({ rootDir: repoSourceDir, ref: 'last-sync' })
+                            } else {
+                                await this.ProjectRepository.reset({ rootDir: repoSourceDir })
+                            }
 
                             const gitignorePath = join(projectSourceDir, '.gitignore')
                             await this.ProjectRepository.sync({
@@ -352,8 +363,13 @@ export async function capsule({
                                 excludePatterns: repositoriesConfig.alwaysIgnore || []
                             })
 
+                            // Detect real source changes and commit synced state
+                            const hasSourceChanges = await this.ProjectRepository.hasChanges({ rootDir: repoSourceDir })
+                            repoSourceChanges.set(repoName, hasSourceChanges)
+                            await this.ProjectRepository.commit({ rootDir: repoSourceDir, message: 'sync' })
+
                             stageSourceDirs.set(repoName, repoSourceDir)
-                            console.log(`=> Synced '${repoName}' to: ${repoSourceDir}\n`)
+                            console.log(`=> Synced '${repoName}' to: ${repoSourceDir}${hasSourceChanges ? '' : ' (no source changes)'}\n`)
                         }
 
                         // ══════════════════════════════════════════════════════
@@ -370,10 +386,12 @@ export async function capsule({
 
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = stageSourceDirs.get(repoName)!
+                                const hasSourceChanges = repoSourceChanges.get(repoName) ?? true
 
-                                const hasChanges = await this.ProjectRepository.hasChanges({ rootDir: repoSourceDir })
-                                if (!hasChanges) {
-                                    console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
+                                // For --rc/--bump: only bump if source actually changed
+                                // For --release: always call bump (to strip -rc. suffix even without changes)
+                                if (!hasSourceChanges && !release) {
+                                    console.log(`=> Skipping bump for '${repoName}' (no source changes)\n`)
                                     continue
                                 }
 
@@ -397,6 +415,27 @@ export async function capsule({
                             }
 
                             console.log('[t44] Version bump complete!\n')
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Update last-sync baseline
+                        // After bump writes version back to source, re-sync
+                        // and commit+tag so next run's baseline includes the
+                        // bumped version (avoids false-positive change detection).
+                        // ══════════════════════════════════════════════════════
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const repoSourceDir = stageSourceDirs.get(repoName)!
+                            const projectSourceDir = join((repoConfig as any).sourceDir)
+                            const gitignorePath = join(projectSourceDir, '.gitignore')
+
+                            await this.ProjectRepository.sync({
+                                rootDir: repoSourceDir,
+                                sourceDir: projectSourceDir,
+                                gitignorePath,
+                                excludePatterns: repositoriesConfig.alwaysIgnore || []
+                            })
+                            await this.ProjectRepository.commit({ rootDir: repoSourceDir, message: 'sync' })
+                            await this.ProjectRepository.moveTag({ rootDir: repoSourceDir, tag: 'last-sync' })
                         }
 
                         // ══════════════════════════════════════════════════════
