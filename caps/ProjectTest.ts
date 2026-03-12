@@ -446,6 +446,25 @@ export async function capsule({
                         throw new Error('Could not find an available port after 10 attempts')
                     }
                 },
+                getRandomPortPool: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, options: { size: number }): Promise<{ ports: number[], nextPort: () => number }> {
+                        const ports: number[] = []
+                        for (let i = 0; i < options.size; i++) {
+                            ports.push(await this.getRandomPort())
+                        }
+                        let index = 0
+                        return {
+                            ports,
+                            nextPort(): number {
+                                if (index >= ports.length) {
+                                    throw new Error('Port pool exhausted — allocate more ports')
+                                }
+                                return ports[index++]
+                            }
+                        }
+                    }
+                },
             }
         }
     }, {

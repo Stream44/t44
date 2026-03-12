@@ -2,6 +2,8 @@ import * as path from 'path'
 import * as fsPromises from 'fs/promises'
 import { constants as fsConstants } from 'fs'
 import { spawn } from 'bun'
+import * as childProcess from 'child_process'
+import dgram from 'node:dgram'
 
 export async function capsule({
     encapsulate,
@@ -27,6 +29,16 @@ export async function capsule({
                         ...fsPromises,
                         ...fsConstants
                     },
+                },
+
+                childProcess: {
+                    type: CapsulePropertyTypes.Constant,
+                    value: childProcess,
+                },
+
+                dgram: {
+                    type: CapsulePropertyTypes.Constant,
+                    value: dgram,
                 },
 
                 spawnProcess: {

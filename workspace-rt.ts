@@ -75,7 +75,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
 
             let capsuleRef = event.target?.capsuleSourceLineRef
             let prop = event.target?.prop
-            let callerLocation = event.caller ? `${event.caller.filepath}:${event.caller.line}` : 'unknown'
+            let callerLocation = event.caller ? `${event.caller.fileUri}:${event.caller.line}` : 'unknown'
             const eventType = event.event
 
             // For call-result events, look up the original call event to get all info
@@ -86,7 +86,7 @@ export async function run(encapsulateHandler: any, runHandler: any, options?: { 
                     capsuleRef = callEvent.target?.capsuleSourceLineRef || capsuleRef
                     prop = callEvent.target?.prop || prop
                     if (callEvent.caller) {
-                        callerLocation = `${callEvent.caller.filepath}:${callEvent.caller.line}`
+                        callerLocation = `${callEvent.caller.fileUri}:${callEvent.caller.line}`
                     }
                 }
             }
