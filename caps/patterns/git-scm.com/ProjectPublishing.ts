@@ -431,11 +431,11 @@ export async function capsule({
 
                         // Push to remote
                         if (shouldReset || squashedToCommit) {
-                            console.log(`Force pushing to remote${squashedToCommit ? ' (squash rewrite)' : ''} ...`)
+                            console.log(`Force pushing to ${chalk.magenta(originUri)}${squashedToCommit ? ' (squash rewrite)' : ''} ...`)
                             await this.ProjectRepository.forcePush({ rootDir: stageDir, branch: targetBranch })
                             console.log(`Force pushed to remote`)
                         } else if (isNewEmptyRepo || hasNewChanges || localAheadOfRemote || branchSwitched) {
-                            console.log(`Pushing to remote${targetBranch ? ` (branch: ${targetBranch})` : ''} ...`)
+                            console.log(`Pushing to ${chalk.magenta(originUri)}${targetBranch ? ` (branch: ${targetBranch})` : ''} ...`)
                             await this.ProjectRepository.push({ rootDir: stageDir, branch: targetBranch })
                             console.log(`Pushed to remote`)
                         }

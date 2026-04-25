@@ -430,11 +430,10 @@ async function updateWorkspaceDependencies(
                         const depSourceDir = workspacePackageSourceDirs[workspaceDepName] || workspacePackageSourceDirs[depName]
 
                         if (!depSourceDir) {
-                            throw new Error(
-                                `Could not find source directory for workspace dependency ${depName} (resolved to: ${workspaceDepName})\n` +
-                                `  workspaceNpmPackageNames keys: ${Object.keys(workspaceNpmPackageNames).join(', ')}\n` +
-                                `  workspacePackageSourceDirs keys: ${Object.keys(workspacePackageSourceDirs).join(', ')}`
-                            )
+                            // Dependency is not part of the publishing scope (external workspace dependency)
+                            // Skip it - workspace: protocol deps that aren't in scope shouldn't be published
+                            console.log(chalk.yellow(`  ⚠ Skipping external workspace dependency: ${depName}`))
+                            continue
                         }
 
                         const depPackageJsonPath = join(depSourceDir, 'package.json')

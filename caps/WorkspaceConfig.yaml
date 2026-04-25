@@ -1,4 +1,4 @@
-$schema: ../../../../.~o/workspace.foundation/@stream44.studio~t44~caps~JsonSchemas/@stream44.studio~t44~structs~WorkspaceConfigFile.json
+$schema: ../.~o/workspace.foundation/@stream44.studio~t44~caps~JsonSchemas/@stream44.studio~t44~structs~WorkspaceConfigFile.json
 extends:
   - ./WorkspaceShell.yaml
 "#@stream44.studio/t44/structs/WorkspaceCliConfig":
@@ -10,6 +10,13 @@ extends:
       init:
         capsule: "@stream44.studio/t44/caps/WorkspaceInit"
         description: Initialize a new Terminal 44 workspace.
+        options:
+          from:
+            description: Path to an existing workspace to copy configuration from (same rack, same credentials).
+            value: required
+          at:
+            description: Path to initialize a new workspace at, using the current workspace as template (same rack, same credentials).
+            value: required
       activate:
         capsule: "@stream44.studio/t44/caps/WorkspaceShell"
         description: Generate environment variables for sourcing into shells.
@@ -29,6 +36,24 @@ extends:
         options:
           full:
             description: Show full details instead of compact view
+      test:
+        capsule: "@stream44.studio/t44/caps/ProjectTesting"
+        description: Run tests for a project or package.
+        arguments:
+          projectSelector:
+            optional: true
+            description: Name of a project or package to run the test script for.
+        options:
+          parallel:
+            short: p
+            description: Run tests for all matched projects in parallel instead of sequentially.
+          timeout:
+            short: t
+            description: Max number of seconds to run each test before timing out and moving on.
+            value: required
+          linux:
+            short: l
+            description: Run tests inside a Linux VM (OrbStack) instead of natively on macOS.
       dev:
         capsule: "@stream44.studio/t44/caps/ProjectDevelopment"
         description: Run a project or package dev server.
@@ -68,11 +93,11 @@ extends:
             description: Automatically agree to DCO sign-off without prompting.
       pull:
         capsule: "@stream44.studio/t44/caps/ProjectPulling"
-        description: Sync changes from a remote branch URL into the local source directory.
+        description: Pull a project from the project rack or sync changes from a remote branch URL. Without arguments, pulls all workspace projects.
         arguments:
-          url:
-            optional: false
-            description: URL of a remote branch to pull from (e.g. https://github.com/owner/repo/tree/branch)
+          projectNameOrUrl:
+            optional: true
+            description: Name of a project in the project rack, or URL of a remote branch to pull from. If omitted, pulls all known workspace projects.
       deploy:
         capsule: "@stream44.studio/t44/caps/ProjectDeployment"
         description: Deploy a project to a provider.

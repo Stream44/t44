@@ -23,17 +23,17 @@ This document is the authoritative reference for **capsule definition patterns, 
 @stream44.studio/encapsulate/
 ├── src/
 │   ├── encapsulate.ts                      # Core: Spine, SpineRuntime, CapsulePropertyTypes, makeImportStack, merge
-│   ├── static-analyzer.v0.ts               # Static analysis for CST generation
+│   ├── static-analyzer.ts               # Static analysis for CST generation
 │   ├── capsule-projectors/
-│   │   └── CapsuleModuleProjector.v0.ts    # Module projection for capsule loading
+│   │   └── CapsuleModuleProjector.ts    # Module projection for capsule loading
 │   ├── spine-contracts/
 │   │   └── CapsuleSpineContract.v0/
-│   │       ├── Static.v0.ts                # Direct property assignment (no interception)
-│   │       ├── Membrane.v0.ts              # Proxy-wrapped API with event emission
+│   │       ├── Static.ts                # Direct property assignment (no interception)
+│   │       ├── Membrane.ts              # Proxy-wrapped API with event emission
 │   │       ├── README.md                   # Full contract reference
 │   │       └── Overview.svg                # Visual diagram
 │   └── spine-factories/
-│       ├── CapsuleSpineFactory.v0.ts       # Factory: sets up spine, contracts, module resolution
+│       ├── CapsuleSpineFactory.ts       # Factory: sets up spine, contracts, module resolution
 │       └── TimingObserver.ts               # Optional trace timing
 ├── structs/
 │   └── Capsule.ts                          # Capsule metadata struct
@@ -48,9 +48,9 @@ The package exposes these entry points (from `package.json` exports):
 | Import Path | Maps To | Purpose |
 |---|---|---|
 | `@stream44.studio/encapsulate/encapsulate` | `src/encapsulate.ts` | Core: `Spine`, `SpineRuntime`, `CapsulePropertyTypes`, `makeImportStack`, `merge` |
-| `@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Static.v0` | `src/spine-contracts/CapsuleSpineContract.v0/Static.v0.ts` | Static spine contract (no interception) |
-| `@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane.v0` | `src/spine-contracts/CapsuleSpineContract.v0/Membrane.v0.ts` | Membrane spine contract (proxy + events) |
-| `@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory.v0` | `src/spine-factories/CapsuleSpineFactory.v0.ts` | High-level factory (used by standalone-rt) |
+| `@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Static` | `src/spine-contracts/CapsuleSpineContract.v0/Static.ts` | Static spine contract (no interception) |
+| `@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane` | `src/spine-contracts/CapsuleSpineContract.v0/Membrane.ts` | Membrane spine contract (proxy + events) |
+| `@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory` | `src/spine-factories/CapsuleSpineFactory.ts` | High-level factory (used by standalone-rt) |
 | `@stream44.studio/encapsulate/spine-factories/TimingObserver` | `src/spine-factories/TimingObserver.ts` | Trace timing helper |
 | `@stream44.studio/encapsulate/structs/Capsule` | `structs/Capsule.ts` | Capsule metadata struct |
 
@@ -72,10 +72,10 @@ The only spine contract in use is **CapsuleSpineContract.v0**, available in two 
 
 | Implementation | Overhead | Use Case |
 |---|---|---|
-| **Static.v0** | Minimal — direct property assignment | Production, when no event capture is needed |
-| **Membrane.v0** | Higher — wraps API in proxies | Development, when membrane events are captured |
+| **Static** | Minimal — direct property assignment | Production, when no event capture is needed |
+| **Membrane** | Higher — wraps API in proxies | Development, when membrane events are captured |
 
-The standalone-rt always uses **Membrane.v0** (imported via `CapsuleSpineFactory`).
+The standalone-rt always uses **Membrane** (imported via `CapsuleSpineFactory`).
 
 ### Property Contracts
 
@@ -493,7 +493,7 @@ this['#@stream44.studio/encapsulate/structs/Capsule'] === {
 
 ## 10. Membrane Events
 
-When using **Membrane.v0** (the default in standalone-rt), the API is wrapped in proxies that emit events for every property access:
+When using **Membrane** (the default in standalone-rt), the API is wrapped in proxies that emit events for every property access:
 
 | Event | Emitted When | Payload |
 |---|---|---|
@@ -718,19 +718,19 @@ capsule['#'] = '@scope/package/caps/DatabaseConnection'
 
 ---
 
-## 16. Spine Contracts: Static.v0 vs Membrane.v0
+## 16. Spine Contracts: Static vs Membrane
 
 Both implement the same property mapping logic. The difference is observability.
 
-**Static.v0** — direct property assignment. No interception. Minimal overhead. Use when no event capture is needed.
+**Static** — direct property assignment. No interception. Minimal overhead. Use when no event capture is needed.
 
-**Membrane.v0** — wraps the API in proxies that emit events for every property access. Enables:
+**Membrane** — wraps the API in proxies that emit events for every property access. Enables:
 - Runtime call tracing
 - Membrane event capture (`.events.json`)
 - Caller stack inference
 - Memoized result tagging
 
-The standalone-rt **always uses Membrane.v0**. This is the correct default for development. Static.v0 is reserved for production builds where observability is not needed.
+The standalone-rt **always uses Membrane**. This is the correct default for development. Static is reserved for production builds where observability is not needed.
 
 ---
 
@@ -774,8 +774,8 @@ capsule['#'] = '@my-org/my-package/server/server'
 ```typescript
 #!/usr/bin/env bun
 import { resolve } from 'path'
-import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory.v0"
-import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane.v0"
+import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory"
+import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane"
 
 async function bootCapsule() {
     const { encapsulate, freeze, CapsulePropertyTypes, makeImportStack, hoistSnapshot } = await CapsuleSpineFactory({

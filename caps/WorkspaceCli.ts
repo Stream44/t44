@@ -50,6 +50,10 @@ export async function capsule({
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/ProjectDevelopment'
                 },
+                ProjectTesting: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/ProjectTesting'
+                },
                 WorkspaceInit: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspaceInit'
@@ -130,6 +134,8 @@ export async function capsule({
                                         await self.WorkspaceShell.run({ args: commandArgs })
                                     } else if (capsule === '@stream44.studio/t44/caps/ProjectDevelopment') {
                                         await self.ProjectDevelopment.run({ args: commandArgs })
+                                    } else if (capsule === '@stream44.studio/t44/caps/ProjectTesting') {
+                                        await self.ProjectTesting.run({ args: commandArgs })
                                     } else if (capsule === '@stream44.studio/t44/caps/WorkspaceInit') {
                                         await self.WorkspaceInit.run({ args: commandArgs })
                                     } else if (capsule === '@stream44.studio/t44/caps/WorkspaceInfo') {
@@ -307,6 +313,65 @@ export async function capsule({
                         return true
                     }
                 },
+                spawnCli: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, options: {
+                        cwd: string,
+                        args: string[],
+                        env?: Record<string, string | undefined>,
+                        timeout?: number,
+                    }): Promise<{ exitCode: number, stdout: string, stderr: string }> {
+                        const { join, dirname } = await import('path')
+                        const { fileURLToPath } = await import('url')
+                        const { cwd, args, env: envOverrides = {}, timeout = 30_000 } = options
+                        const capsuleDir = dirname(fileURLToPath(import.meta.url))
+                        const t44Bin = join(capsuleDir, '../bin/t44')
+                        const bunExe = Bun.which('bun')
+
+                        const mergedEnv = { ...process.env, ...envOverrides }
+                        const proc = Bun.spawn([bunExe!, t44Bin, ...args, '--yes'], {
+                            env: mergedEnv,
+                            cwd,
+                            stdout: 'pipe',
+                            stderr: 'pipe',
+                            stdin: 'pipe',
+                        })
+                        proc.stdin.end()
+
+                        const timer = setTimeout(() => proc.kill(), timeout)
+
+                        const stdoutChunks: string[] = []
+                        const stderrChunks: string[] = []
+
+                        const verbose = !!process.env.VERBOSE
+
+                        const stdoutWriter = new WritableStream({
+                            write(chunk) {
+                                const text = new TextDecoder().decode(chunk)
+                                stdoutChunks.push(text)
+                                if (verbose) process.stdout.write(text)
+                            }
+                        })
+
+                        const stderrWriter = new WritableStream({
+                            write(chunk) {
+                                const text = new TextDecoder().decode(chunk)
+                                stderrChunks.push(text)
+                                if (verbose) process.stderr.write(text)
+                            }
+                        })
+
+                        const [exitCode] = await Promise.all([
+                            proc.exited,
+                            proc.stdout.pipeTo(stdoutWriter),
+                            proc.stderr.pipeTo(stderrWriter),
+                        ])
+
+                        clearTimeout(timer)
+
+                        return { exitCode, stdout: stdoutChunks.join(''), stderr: stderrChunks.join('') }
+                    }
+                },
                 runCli: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, argv: string[]): Promise<void> {
@@ -323,6 +388,35 @@ export async function capsule({
                         // Set cliOptions for use by other capsules
                         this.cliOptions = { yes: hasYesFlag, now: hasNowFlag }
                         this.WorkspacePrompt.cliOptions = { yes: hasYesFlag }
+
+                        // Detect 'init' flags early so we can validate and pre-populate config
+                        // before the ensure steps run
+                        const initFromIndex = argv.indexOf('init')
+                        if (initFromIndex !== -1) {
+                            const fromFlagIndex = argv.indexOf('--from', initFromIndex)
+                            const atFlagIndex = argv.indexOf('--at', initFromIndex)
+
+                            if (fromFlagIndex !== -1 && fromFlagIndex + 1 < argv.length) {
+                                // --from: check if current directory already has a workspace
+                                if (await this.WorkspaceInit._isWorkspaceInitialized(process.cwd())) {
+                                    const chalk = (await import('chalk')).default
+                                    console.error(chalk.red(`\n✗ This directory is already an initialized workspace: ${process.cwd()}\n`))
+                                    console.error(chalk.red(`  Cannot use --from in an already initialized workspace.\n`))
+                                    process.exit(1)
+                                }
+                                const fromPath = argv[fromFlagIndex + 1]
+                                await this.WorkspaceInit._initFrom(fromPath)
+                            }
+
+                            if (atFlagIndex !== -1 && atFlagIndex + 1 < argv.length) {
+                                // --at: run _initAt and exit — no need for the ensure pipeline on the current workspace
+                                // (_initAt does its own check for existing workspace config)
+                                const { resolve } = await import('path')
+                                const atPath = resolve(argv[atFlagIndex + 1])
+                                await this.WorkspaceInit._initAt(atPath)
+                                return
+                            }
+                        }
 
                         // Ensure workspace config base fields (rootDir, rootConfigFilepath)
                         await this.WorkspaceConfig.ensureConfigBase()
@@ -383,12 +477,13 @@ export async function capsule({
                             if (commandOptions) {
                                 for (const optionName in commandOptions) {
                                     const optionConfig = commandOptions[optionName]
+                                    const shortFlag = optionConfig.short ? `-${optionConfig.short}, ` : ''
                                     if (optionConfig.value === 'optional') {
-                                        cmd.option(`--${optionName} [value]`, optionConfig.description || '')
+                                        cmd.option(`${shortFlag}--${optionName} [value]`, optionConfig.description || '')
                                     } else if (optionConfig.value === 'required') {
-                                        cmd.option(`--${optionName} <value>`, optionConfig.description || '')
+                                        cmd.option(`${shortFlag}--${optionName} <value>`, optionConfig.description || '')
                                     } else {
-                                        cmd.option(`--${optionName}`, optionConfig.description || '')
+                                        cmd.option(`${shortFlag}--${optionName}`, optionConfig.description || '')
                                     }
                                 }
                             }

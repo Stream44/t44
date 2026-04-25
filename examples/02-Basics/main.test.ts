@@ -1,18 +1,12 @@
 #!/usr/bin/env bun test
 // Set VERBOSE=1 to see stdout/stderr from spawned t44 commands
 
-export const testConfig = {
-    group: 'lifecycle',
-    runOnAll: false,
-}
-
-import { join } from 'path'
-import { mkdir, writeFile, rm, stat } from 'fs/promises'
 import * as bunTest from 'bun:test'
 import { run } from '@stream44.studio/t44/workspace-rt'
 
 const {
-    test: { describe, it, expect, beforeAll, workbenchDir },
+    test: { describe, it, expect, beforeAll, workbenchDir, lib: { fs, path } },
+    cli,
 } = await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
     const spine = await encapsulate({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
@@ -27,12 +21,16 @@ const {
                         }
                     }
                 },
+                cli: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceCli'
+                },
             }
         }
     }, {
         importMeta: import.meta,
         importStack: makeImportStack(),
-        capsuleName: '@stream44.studio/t44/examples/01-Lifecycle/main.test'
+        capsuleName: '@stream44.studio/t44/examples/02-Basics/main.test'
     })
     return { spine }
 }, async ({ spine, apis }: any) => {
@@ -41,64 +39,21 @@ const {
     importMeta: import.meta
 })
 
-const t44Bin = join(import.meta.dir, '../../bin/t44')
-const bunExe = Bun.which('bun')
-
-const homeDir = join(workbenchDir, 'lifecycle', 'home')
-const repoDir = join(workbenchDir, 'lifecycle', 'repo')
-const env = { ...process.env, T44_HOME_DIR: homeDir, T44_KEYS_PASSPHRASE: 't44-test' }
+const homeDir = path.join(workbenchDir, 'lifecycle', 'home')
+const repoDir = path.join(workbenchDir, 'lifecycle', 'repo')
+const env = { T44_HOME_DIR: homeDir, T44_KEYS_PASSPHRASE: 't44-test' }
 
 async function runT44(...args: string[]) {
-    const proc = Bun.spawn([bunExe!, t44Bin, ...args, '--yes'], {
-        env,
-        cwd: repoDir,
-        stdout: 'pipe',
-        stderr: 'pipe',
-        stdin: 'pipe',
-    })
-    proc.stdin.end()
-
-    const timeout = setTimeout(() => proc.kill(), 15_000)
-
-    const stdoutChunks: string[] = []
-    const stderrChunks: string[] = []
-
-    const verbose = !!process.env.VERBOSE
-
-    const stdoutReader = new WritableStream({
-        write(chunk) {
-            const text = new TextDecoder().decode(chunk)
-            stdoutChunks.push(text)
-            if (verbose) process.stdout.write(text)
-        }
-    })
-
-    const stderrReader = new WritableStream({
-        write(chunk) {
-            const text = new TextDecoder().decode(chunk)
-            stderrChunks.push(text)
-            if (verbose) process.stderr.write(text)
-        }
-    })
-
-    const [exitCode] = await Promise.all([
-        proc.exited,
-        proc.stdout.pipeTo(stdoutReader),
-        proc.stderr.pipeTo(stderrReader),
-    ])
-
-    clearTimeout(timeout)
-
-    return { exitCode, stdout: stdoutChunks.join(''), stderr: stderrChunks.join('') }
+    return cli.spawnCli({ cwd: repoDir, args, env, timeout: 15_000 })
 }
 
 describe('t44 lifecycle', function () {
 
     beforeAll(async () => {
-        await rm(join(workbenchDir, 'lifecycle'), { recursive: true, force: true })
-        await mkdir(homeDir, { recursive: true })
-        await mkdir(join(homeDir, '.ssh'), { recursive: true })
-        await mkdir(repoDir, { recursive: true })
+        await fs.rm(path.join(workbenchDir, 'lifecycle'), { recursive: true, force: true })
+        await fs.mkdir(homeDir, { recursive: true })
+        await fs.mkdir(path.join(homeDir, '.ssh'), { recursive: true })
+        await fs.mkdir(repoDir, { recursive: true })
         // Note: .workspace/workspace.yaml is now created automatically by t44 init
     })
 
@@ -112,23 +67,24 @@ describe('t44 lifecycle', function () {
         expect(exitCode).toBe(0)
 
         // Verify registry was created
-        const registryDir = join(homeDir, '.o/workspace.foundation')
-        const registryStat = await stat(registryDir)
+        const registryDir = path.join(homeDir, '.o/workspace.foundation')
+        const registryStat = await fs.stat(registryDir)
         expect(registryStat.isDirectory()).toBe(true)
 
         // Verify SSH keys were created
-        const sshDir = join(homeDir, '.ssh')
-        const rootKeyStat = await stat(join(sshDir, 'id_t44_ed25519'))
+        const sshDir = path.join(homeDir, '.ssh')
+        const rootKeyStat = await fs.stat(path.join(sshDir, 'id_t44_ed25519'))
         expect(rootKeyStat.isFile()).toBe(true)
 
-        const signingKeyStat = await stat(join(sshDir, 'id_t44_signing_ed25519'))
+        const signingKeyStat = await fs.stat(path.join(sshDir, 'id_t44_signing_ed25519'))
         expect(signingKeyStat.isFile()).toBe(true)
     }, 15_000)
 
     it('activate — bin/activate.ts outputs shell exports', async () => {
-        const activateBin = join(import.meta.dir, '../../bin/activate.ts')
+        const activateBin = path.join(import.meta.dir, '../../bin/activate.ts')
+        const bunExe = Bun.which('bun')
         const proc = Bun.spawn([bunExe!, activateBin, '--yes'], {
-            env,
+            env: { ...process.env, ...env },
             cwd: repoDir,
             stdout: 'pipe',
             stderr: 'pipe',

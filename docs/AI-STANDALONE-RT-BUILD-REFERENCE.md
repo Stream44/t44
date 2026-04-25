@@ -35,7 +35,7 @@ This document covers **how to compose capsules, write test files, use built-in t
                   │
 ┌─────────────────▼───────────────────────────────────────┐
 │  standalone-rt.ts                                        │
-│    • CapsuleSpineFactory (Membrane.v0)                   │
+│    • CapsuleSpineFactory (Membrane)                   │
 │    • freeze() + hoistSnapshot() (default path)           │
 │    • Membrane event capture + .events.json persistence   │
 │    • ProjectTest overrides injection                     │
@@ -45,13 +45,13 @@ This document covers **how to compose capsules, write test files, use built-in t
 │  @stream44.studio/encapsulate                            │
 │    • encapsulate() — capsule definition                  │
 │    • SpineRuntime — instantiation + lifecycle            │
-│    • CapsuleSpineContract.v0/Membrane.v0 — proxy API    │
+│    • CapsuleSpineContract.v0/Membrane — proxy API    │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### What standalone-rt does
 
-1. **Initializes the spine** via `CapsuleSpineFactory` with `Membrane.v0` spine contract
+1. **Initializes the spine** via `CapsuleSpineFactory` with `Membrane` spine contract
 2. **Calls your `encapsulateHandler`** — you define capsule(s) using `encapsulate()`
 3. **Freezes + hoists the snapshot** (default) — serializes the capsule tree for deterministic execution
 4. **Calls your `runHandler`** — you receive `apis` (proxy-wrapped capsule instances) and return a result
@@ -368,19 +368,28 @@ it('connects to service', async () => {
 
 ---
 
-### `@stream44.studio/t44/caps/ProjectTestLib`
+### `@stream44.studio/t44/caps/WorkspaceLib`
 
-Utility capsule mapped by `ProjectTest` as `lib`. Provides filesystem, process spawning, and HTTP utilities.
+Shared utility capsule providing filesystem, process spawning, HTTP utilities, bun shell (`$`), and chalk. Mapped by `ProjectTest` as `lib` and available for workspace capsules to map directly.
 
-**Access pattern**: `test.lib.<method>` (accessed through the `test` capsule).
+**Access pattern in tests**: `test.lib.<method>` (accessed through the `test` capsule).
+
+**Access pattern in workspace capsules**: Map `WorkspaceLib` directly and use `this.WorkspaceLib.<property>`.
 
 | Property | Type | Description |
 |---|---|---|
 | `path` | `Constant` | Node.js `path` module |
 | `fs` | `Constant` | Node.js `fs/promises` + `fs.constants` |
+| `$` | `Constant` | Bun shell (`import { $ } from 'bun'`) |
+| `chalk` | `Constant` | Chalk terminal styling library |
+| `yaml` | `Constant` | `js-yaml` YAML parser/serializer |
+| `childProcess` | `Constant` | Node.js `child_process` module |
+| `dgram` | `Constant` | Node.js `dgram` module |
 | `spawnProcess(options)` | `Function` | Spawn a child process with stdout/stderr capture, ready signal detection, and exit waiting |
 | `runPackageScript(options)` | `Function` | Run a package.json script via `bun run <script>` |
 | `waitForFetch(options)` | `Function` | Poll a URL until it responds (or doesn't). Configurable retry, timeout, status matching. |
+
+> **Note**: `@stream44.studio/t44/caps/ProjectTestLib` still exists as a backward-compatible re-export of `WorkspaceLib`.
 
 #### `spawnProcess` Options
 
@@ -916,63 +925,44 @@ packages/<package>/
 
 ---
 
-## 13. Mapping Capsules in Tests (Instead of Direct Imports)
+## 13. Mapping Capsules in Tests
 
-After refactoring a module to export a capsule (instead of classes/functions), tests must **map the capsule** via `CapsulePropertyTypes.Mapping` instead of importing directly.
+Capsules are composed into tests via `CapsulePropertyTypes.Mapping`. Each mapped capsule becomes a property on the destructured `run()` result.
 
-### Before (direct import):
 ```typescript
-import { ServerClient, broadcast } from './server-client';
-// Use directly: new ServerClient(), broadcast(...)
-```
-
-### After (capsule mapping):
-```typescript
-const {
-    test,
-    test: { describe, it, expect, beforeAll, afterAll, verbose },
-    serverClient,
-} = await run(async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
-    const spine = await encapsulate({
-        '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
-            '#@stream44.studio/encapsulate/structs/Capsule': {},
-            '#': {
-                test: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/ProjectTest',
-                    options: { '#': { bunTest, env: {} } }
-                },
-                serverClient: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: './server-client',
-                },
+const { test: { describe, it, expect }, myService } = await run(
+    async ({ encapsulate, CapsulePropertyTypes, makeImportStack }: any) => {
+        const spine = await encapsulate({
+            '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
+                '#@stream44.studio/encapsulate/structs/Capsule': {},
+                '#': {
+                    test: {
+                        type: CapsulePropertyTypes.Mapping,
+                        value: '@stream44.studio/t44/caps/ProjectTest',
+                        options: { '#': { bunTest, env: {} } }
+                    },
+                    myService: {
+                        type: CapsulePropertyTypes.Mapping,
+                        value: './MyService',   // relative or absolute URI
+                    },
+                }
             }
-        }
-    }, {
-        importMeta: import.meta,
-        importStack: makeImportStack(),
-        capsuleName: '@my-org/my-package/server/my-test',
-    })
-    return { spine }
-}, async ({ spine, apis }: any) => {
-    return apis[spine.capsuleSourceLineRef]
-}, {
-    importMeta: import.meta
-})
+        }, {
+            importMeta: import.meta,
+            importStack: makeImportStack(),
+            capsuleName: '@scope/package/MyService.test',
+        })
+        return { spine }
+    },
+    async ({ spine, apis }: any) => apis[spine.capsuleSourceLineRef],
+    { importMeta: import.meta }
+)
 
-// Use capsule API: serverClient.init(), serverClient.broadcast(), etc.
+// Use capsule API directly:
+myService.doSomething()
 ```
-
-### Key migration steps:
-1. Remove direct `import { ... } from './module'` statements
-2. Add `CapsulePropertyTypes.Mapping` entry for the capsule in the `run()` call
-3. Destructure the mapped capsule from the `run()` result
-4. Replace `new ClassName(...)` with the capsule instance (already instantiated)
-5. Replace standalone function calls (e.g., `broadcast(...)`) with capsule method calls (e.g., `serverClient.broadcastOnce(...)`)
-6. If tests spawn the module as a child process, point to the `.bin.ts` boot file instead
 
 ### Test utilities via `test.lib.*`:
-Instead of importing Node/Bun modules directly, use `test.lib` (mapped from `@stream44.studio/t44/caps/ProjectTestLib`):
 
 | Direct import | Use instead |
 |---|---|
@@ -983,15 +973,14 @@ Instead of importing Node/Bun modules directly, use `test.lib` (mapped from `@st
 
 ### Port allocation:
 ```typescript
-// Single port
 const port = await test.getRandomPort();
 
-// Pool of unique ports (pre-allocated) — returns { ports, nextPort() }
+// Pool of unique ports (pre-allocated)
 const portPool = await test.getRandomPortPool({ size: 30 });
-const port1 = portPool.nextPort(); // get next available port
-const port2 = portPool.nextPort(); // get another
-// portPool.ports — full array of pre-allocated ports
+const port1 = portPool.nextPort();
 ```
+
+> **Migrating from `makeWorkspaceCapsule_v0`?** See `.windsurf/rules/AI-MIGRATE-TO-ENCAPSULATE.md` for the complete step-by-step migration guide with before/after examples.
 
 ---
 
@@ -1004,7 +993,7 @@ For reference, here is what `standalone-rt.ts` does under the hood:
    - `spineFilesystemRoot` — the package root
    - `capsuleModuleProjectionRoot` — `importMeta.dir`
    - `enableCallerStackInference: true`
-   - `spineContracts` — `CapsuleSpineContract.v0` (Membrane.v0)
+   - `spineContracts` — `CapsuleSpineContract.v0` (Membrane)
    - `onMembraneEvent` — event handler for tracing and capture
 3. **Calls `encapsulateHandler`** with `{ encapsulate, CapsulePropertyTypes, makeImportStack }`
 4. **Freeze + hoist** (unless `runFromSnapshot: false`):

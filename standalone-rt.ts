@@ -7,8 +7,8 @@ const startTime = Date.now()
 import { resolve, join } from 'path'
 import { access, readdir, writeFile } from 'fs/promises'
 import chalk from 'chalk'
-import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory.v0"
-import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane.v0"
+import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory"
+import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane"
 import { TimingObserver } from "@stream44.studio/encapsulate/spine-factories/TimingObserver"
 
 async function findPackageRoot(startDir: string): Promise<string> {

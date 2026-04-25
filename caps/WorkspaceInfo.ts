@@ -31,18 +31,6 @@ export async function capsule({
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspaceConfig'
                 },
-                Vercel: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44-vercel.com/caps/ProjectDeployment'
-                },
-                Bunny: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44-bunny.net/caps/StaticWebsite/ProjectDeployment'
-                },
-                Dynadot: {
-                    type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44-dynadot.com/caps/ProjectDeployment'
-                },
                 ProjectCatalogs: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/ProjectCatalogs'
@@ -183,43 +171,22 @@ export async function capsule({
 
                                                     const passive = !args?.now && !args?.full
 
-                                                    if (capsulePath === '@stream44.studio/t44-vercel.com/caps/ProjectDeployment') {
-                                                        providerStatusPromises.push(this.Vercel.status({
-                                                            config,
-                                                            now: args?.now,
-                                                            passive,
-                                                            deploymentName
-                                                        }).catch((error: any) => ({
+                                                    const cleanUri = capsulePath.startsWith('#') ? capsulePath.substring(1) : capsulePath
+                                                    providerStatusPromises.push(
+                                                        this.self.importCapsule({ uri: cleanUri }).then(
+                                                            ({ api }: any) => api.status({
+                                                                config,
+                                                                now: args?.now,
+                                                                passive,
+                                                                deploymentName
+                                                            })
+                                                        ).catch((error: any) => ({
                                                             projectName: deploymentName,
-                                                            provider: 'vercel.com',
+                                                            provider: cleanUri.split('/').find((s: string) => s.includes('.')) || 'unknown',
                                                             error: error.message,
                                                             rawDefinitionFilepaths: []
-                                                        })))
-                                                    } else if (capsulePath === '@stream44.studio/t44-bunny.net/caps/StaticWebsite/ProjectDeployment') {
-                                                        providerStatusPromises.push(this.Bunny.status({
-                                                            config,
-                                                            now: args?.now,
-                                                            passive,
-                                                            deploymentName
-                                                        }).catch((error: any) => ({
-                                                            projectName: deploymentName,
-                                                            provider: 'bunny.net',
-                                                            error: error.message,
-                                                            rawDefinitionFilepaths: []
-                                                        })))
-                                                    } else if (capsulePath === '@stream44.studio/t44-dynadot.com/caps/ProjectDeployment') {
-                                                        providerStatusPromises.push(this.Dynadot.status({
-                                                            config,
-                                                            now: args?.now,
-                                                            passive,
-                                                            deploymentName
-                                                        }).catch((error: any) => ({
-                                                            projectName: deploymentName,
-                                                            provider: 'dynadot.com',
-                                                            error: error.message,
-                                                            rawDefinitionFilepaths: []
-                                                        })))
-                                                    }
+                                                        }))
+                                                    )
                                                 }
 
                                                 if (providerStatusPromises.length > 0) {

@@ -1,9 +1,4 @@
 import type * as BunTest from 'bun:test'
-import { config as loadDotenv } from 'dotenv'
-import { join, dirname, basename } from 'path'
-import { mkdir, readFile, writeFile } from 'fs/promises'
-import { existsSync } from 'fs'
-import stringify from 'json-stable-stringify'
 
 // Global cache for loaded env files (this is fine as a cache)
 const loadedEnvFiles = new Set<string>()
@@ -23,7 +18,7 @@ export async function capsule({
             '#': {
                 lib: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/ProjectTestLib',
+                    value: '@stream44.studio/t44/caps/WorkspaceLib',
                 },
                 bunTest: {
                     type: CapsulePropertyTypes.Literal,
@@ -51,16 +46,16 @@ export async function capsule({
                         if (this._envLoaded) return
 
                         // Load .env file if it exists
-                        const envPath = join(cwd, '.env')
+                        const envPath = this.lib.path.join(cwd, '.env')
                         if (!loadedEnvFiles.has(envPath)) {
-                            loadDotenv({ path: envPath, quiet: true })
+                            this.lib.dotenv.config({ path: envPath, quiet: true })
                             loadedEnvFiles.add(envPath)
                         }
 
                         // Load .env.dev file if it exists
-                        const envDevPath = join(cwd, '.env.dev')
+                        const envDevPath = this.lib.path.join(cwd, '.env.dev')
                         if (!loadedEnvFiles.has(envDevPath)) {
-                            loadDotenv({ path: envDevPath, quiet: true })
+                            this.lib.dotenv.config({ path: envDevPath, quiet: true })
                             loadedEnvFiles.add(envDevPath)
                         }
 
@@ -82,7 +77,7 @@ export async function capsule({
                     value: function (this: any): string {
 
                         const moduleFilepath = this['#@stream44.studio/encapsulate/structs/Capsule'].rootCapsule.moduleFilepath
-                        const dir = join(this.testRootDir, '.~o/workspace.foundation/workbenches', basename(moduleFilepath).replace(/\.[^\.]+$/, ''))
+                        const dir = this.lib.path.join(this.testRootDir, '.~o/workspace.foundation/workbenches', this.lib.path.basename(moduleFilepath).replace(/\.[^\.]+$/, ''))
 
                         return dir
                     }
@@ -93,7 +88,7 @@ export async function capsule({
                         const dir = this.workbenchDir
 
                         // Ensure the directory exists first
-                        await mkdir(dir, { recursive: true })
+                        await this.lib.fs.mkdir(dir, { recursive: true })
 
                         // Remove directory contents (not the directory itself) including dotfiles
                         // Use shell with proper globbing to handle both regular files and dotfiles
@@ -152,9 +147,9 @@ export async function capsule({
                     value: function (this: any): string {
                         if (this._snapshotFile) return this._snapshotFile
                         const moduleFilepath = this['#@stream44.studio/encapsulate/structs/Capsule'].rootCapsule.moduleFilepath
-                        const dir = dirname(moduleFilepath)
-                        const base = basename(moduleFilepath)
-                        this._snapshotFile = join(dir, '__snapshots__', base + '.snap.json')
+                        const dir = this.lib.path.dirname(moduleFilepath)
+                        const base = this.lib.path.basename(moduleFilepath)
+                        this._snapshotFile = this.lib.path.join(dir, '__snapshots__', base + '.snap.json')
                         return this._snapshotFile
                     }
                 },
@@ -164,8 +159,8 @@ export async function capsule({
                         if (this._snapshotData !== null) return this._snapshotData
                         const file = this._getSnapshotFile()
                         try {
-                            if (existsSync(file)) {
-                                const raw = await readFile(file, 'utf-8')
+                            if (this.lib.fs.existsSync(file)) {
+                                const raw = await this.lib.fs.readFile(file, 'utf-8')
                                 this._snapshotData = JSON.parse(raw)
                             } else {
                                 this._snapshotData = {}
@@ -181,13 +176,13 @@ export async function capsule({
                     value: async function (this: any): Promise<void> {
                         if (!this._snapshotDirty) return
                         const file = this._getSnapshotFile()
-                        await mkdir(dirname(file), { recursive: true })
+                        await this.lib.fs.mkdir(this.lib.path.dirname(file), { recursive: true })
                         // Sort top-level keys for deterministic file output
                         const sorted: Record<string, any> = {}
                         for (const k of Object.keys(this._snapshotData!).sort()) {
                             sorted[k] = this._snapshotData![k]
                         }
-                        await writeFile(file, JSON.stringify(sorted, null, 2) + '\n', 'utf-8')
+                        await this.lib.fs.writeFile(file, JSON.stringify(sorted, null, 2) + '\n', 'utf-8')
                         this._snapshotDirty = false
                     }
                 },
@@ -212,7 +207,7 @@ export async function capsule({
                         const snapshotKey = `${baseKey} #${count}`
 
                         // Stabilize for storage: sort object keys only (preserves array order in snapshots)
-                        const stabilizeForStorage = (obj: any): any => JSON.parse(stringify(obj) || 'null')
+                        const stabilizeForStorage = (obj: any): any => JSON.parse(this.lib.stringify(obj) || 'null')
 
                         // Detect hash-like strings (32+ hex chars)
                         const isHashLike = (s: string): boolean => /^[0-9a-f]{32,}$/i.test(s)

@@ -1,12 +1,13 @@
-$schema: ../../../../../../../.~o/workspace.foundation/@stream44.studio~t44~caps~JsonSchemas/@stream44.studio~t44~structs~WorkspaceConfigFile.json
+$schema: ../.~o/workspace.foundation/@stream44.studio~t44~caps~JsonSchemas/@stream44.studio~t44~structs~WorkspaceConfigFile.json
 "#@stream44.studio/t44/structs/WorkspaceShellConfig":
   env:
     default: null
     force:
-      F_WORKSPACE_DIR: resolve('${__dirname}/..')
+      F_WORKSPACE_ACTIVATE_BIN_PATH: resolve('${__dirname}/../activate')
+      F_WORKSPACE_IMPL_DIR: resolve('${__dirname}/..')
   shell:
     commands:
-      "44":
+      t44:
         description: Run workspace CLI commands.
         cmd: |
           "${F_WORKSPACE_IMPL_DIR}/bin/t44" $@
@@ -19,7 +20,7 @@ $schema: ../../../../../../../.~o/workspace.foundation/@stream44.studio~t44~caps
         cmd: |
           w_log "start" "Re-activating workspace"
 
-          source "$F_WORKSPACE_ACTIVATE_BIN_PATH"
+          source "${F_WORKSPACE_ACTIVATE_BIN_PATH}"
 
           w_log "success" "Workspace Activated OK!"
       i:

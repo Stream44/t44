@@ -7,20 +7,27 @@ const startTime = Date.now()
 import { join, resolve } from 'path'
 import { access } from 'fs/promises'
 import chalk from 'chalk'
-import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory.v0"
-import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane.v0"
+import { CapsuleSpineFactory } from "@stream44.studio/encapsulate/spine-factories/CapsuleSpineFactory"
+import { CapsuleSpineContract } from "@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0/Membrane"
 import { TimingObserver } from "@stream44.studio/encapsulate/spine-factories/TimingObserver"
 
 async function findWorkspaceRoot(): Promise<string> {
     const isInitCommand = process.argv.includes('init')
-    if (isInitCommand) {
-        const { mkdir, writeFile } = await import('fs/promises')
+    const hasAtFlag = process.argv.includes('--at')
+    if (isInitCommand && !hasAtFlag) {
+        const { mkdir, writeFile, access: fsAccess } = await import('fs/promises')
         const workspaceDir = join(process.cwd(), '.workspace')
         const workspaceConfigPath = join(workspaceDir, 'workspace.yaml')
 
         await mkdir(workspaceDir, { recursive: true })
-        const workspaceYaml = `extends:\n  - '@stream44.studio/t44/workspace.yaml'\n`
-        await writeFile(workspaceConfigPath, workspaceYaml)
+        // Only write scaffolding if workspace.yaml doesn't already exist
+        // (preserves config of already-initialized workspaces using --from)
+        let configExists = false
+        try { await fsAccess(workspaceConfigPath); configExists = true } catch { }
+        if (!configExists) {
+            const workspaceYaml = `extends:\n  - '@stream44.studio/t44/workspace.yaml'\n`
+            await writeFile(workspaceConfigPath, workspaceYaml)
+        }
 
         return process.cwd()
     }

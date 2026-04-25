@@ -1,9 +1,4 @@
 
-import { join } from 'path'
-import { $ } from 'bun'
-import { mkdir, access, readFile, writeFile } from 'fs/promises'
-import { constants } from 'fs'
-
 export async function capsule({
     encapsulate,
     CapsulePropertyTypes,
@@ -20,6 +15,10 @@ export async function capsule({
                 as: '$WorkspaceConfig'
             },
             '#': {
+                lib: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceLib'
+                },
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspaceConfig'
@@ -28,7 +27,7 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { repoUri }: { repoUri: string }): Promise<string> {
                         const normalizedUri = repoUri.replace(/[\/]/g, '~')
-                        return join(
+                        return this.lib.path.join(
                             this.WorkspaceConfig.workspaceRootDir,
                             '.~o/workspace.foundation/@stream44.studio~t44~caps~ProjectRepository/stage',
                             normalizedUri
@@ -38,33 +37,33 @@ export async function capsule({
                 init: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<void> {
-                        await mkdir(rootDir, { recursive: true })
+                        await this.lib.fs.mkdir(rootDir, { recursive: true })
 
-                        const gitDir = join(rootDir, '.git')
+                        const gitDir = this.lib.path.join(rootDir, '.git')
                         let isGitRepo = false
                         try {
-                            await access(gitDir, constants.F_OK)
+                            await this.lib.fs.access(gitDir, this.lib.fs.F_OK)
                             isGitRepo = true
                         } catch { }
 
                         if (!isGitRepo) {
-                            await $`git init`.cwd(rootDir).quiet()
-                            await $`git commit --allow-empty -m init`.cwd(rootDir).quiet()
+                            await this.lib.$`git init`.cwd(rootDir).quiet()
+                            await this.lib.$`git commit --allow-empty -m init`.cwd(rootDir).quiet()
                         }
                     }
                 },
                 reset: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<void> {
-                        await $`git checkout -- .`.cwd(rootDir).quiet().nothrow()
-                        await $`git clean -fd`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git checkout -- .`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git clean -fd`.cwd(rootDir).quiet().nothrow()
                     }
                 },
                 resetHard: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir, ref }: { rootDir: string, ref: string }): Promise<void> {
-                        await $`git reset --hard ${ref}`.cwd(rootDir).quiet().nothrow()
-                        await $`git clean -fd`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git reset --hard ${ref}`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git clean -fd`.cwd(rootDir).quiet().nothrow()
                     }
                 },
                 sync: {
@@ -78,7 +77,7 @@ export async function capsule({
                         let gitignoreExists = false
                         if (gitignorePath) {
                             try {
-                                await access(gitignorePath, constants.F_OK)
+                                await this.lib.fs.access(gitignorePath, this.lib.fs.F_OK)
                                 gitignoreExists = true
                             } catch { }
                         }
@@ -94,16 +93,16 @@ export async function capsule({
                             }
                         }
                         rsyncArgs.push(sourceDir + '/', rootDir + '/')
-                        await $`${rsyncArgs}`
+                        await this.lib.$`${rsyncArgs}`
                     }
                 },
                 hasChanges: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<boolean> {
-                        await $`git add -A`.cwd(rootDir).quiet()
-                        const diff = await $`git diff --cached --stat`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git add -A`.cwd(rootDir).quiet()
+                        const diff = await this.lib.$`git diff --cached --stat`.cwd(rootDir).quiet().nothrow()
                         const hasChanges = diff.text().trim().length > 0
-                        await $`git reset`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git reset`.cwd(rootDir).quiet().nothrow()
                         return hasChanges
                     }
                 },
@@ -113,15 +112,15 @@ export async function capsule({
                         rootDir: string
                         message: string
                     }): Promise<void> {
-                        await $`git add -A`.cwd(rootDir).quiet()
-                        await $`git commit -m ${message}`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git add -A`.cwd(rootDir).quiet()
+                        await this.lib.$`git commit -m ${message}`.cwd(rootDir).quiet().nothrow()
                     }
                 },
                 getTreeHash: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir, ref }: { rootDir: string, ref?: string }): Promise<string> {
                         const target = ref || 'HEAD'
-                        const result = await $`git rev-parse ${target}^{tree}`.cwd(rootDir).quiet().nothrow()
+                        const result = await this.lib.$`git rev-parse ${target}^{tree}`.cwd(rootDir).quiet().nothrow()
                         if (result.exitCode !== 0) return ''
                         return result.text().trim()
                     }
@@ -129,13 +128,13 @@ export async function capsule({
                 moveTag: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir, tag }: { rootDir: string, tag: string }): Promise<void> {
-                        await $`git tag -f ${tag}`.cwd(rootDir).quiet().nothrow()
+                        await this.lib.$`git tag -f ${tag}`.cwd(rootDir).quiet().nothrow()
                     }
                 },
                 getHeadCommit: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<string> {
-                        const result = await $`git rev-parse HEAD`.cwd(rootDir).quiet().nothrow()
+                        const result = await this.lib.$`git rev-parse HEAD`.cwd(rootDir).quiet().nothrow()
                         if (result.exitCode !== 0) return ''
                         return result.text().trim()
                     }
@@ -143,14 +142,14 @@ export async function capsule({
                 getBranch: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<string> {
-                        const result = await $`git rev-parse --abbrev-ref HEAD`.cwd(rootDir).quiet()
+                        const result = await this.lib.$`git rev-parse --abbrev-ref HEAD`.cwd(rootDir).quiet()
                         return result.text().trim()
                     }
                 },
                 getLastCommitMessage: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<string> {
-                        const result = await $`git log -1 --pretty=%B`.cwd(rootDir).quiet()
+                        const result = await this.lib.$`git log -1 --pretty=%B`.cwd(rootDir).quiet()
                         return result.text().trim()
                     }
                 },
@@ -160,19 +159,19 @@ export async function capsule({
                         originUri: string
                         targetDir: string
                     }): Promise<{ isNewEmptyRepo: boolean }> {
-                        const parentDir = join(targetDir, '..')
-                        await mkdir(parentDir, { recursive: true })
-                        await $`git clone ${originUri} ${targetDir}`.cwd(parentDir)
+                        const parentDir = this.lib.path.join(targetDir, '..')
+                        await this.lib.fs.mkdir(parentDir, { recursive: true })
+                        await this.lib.$`git clone ${originUri} ${targetDir}`.cwd(parentDir)
 
-                        const headCheck = await $`git rev-parse HEAD`.cwd(targetDir).quiet().nothrow()
+                        const headCheck = await this.lib.$`git rev-parse HEAD`.cwd(targetDir).quiet().nothrow()
                         return { isNewEmptyRepo: headCheck.exitCode !== 0 }
                     }
                 },
                 addAll: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<boolean> {
-                        await $`git add .`.cwd(rootDir).quiet()
-                        const statusResult = await $`git status --porcelain`.cwd(rootDir).quiet()
+                        await this.lib.$`git add .`.cwd(rootDir).quiet()
+                        const statusResult = await this.lib.$`git status --porcelain`.cwd(rootDir).quiet()
                         return statusResult.text().trim().length > 0
                     }
                 },
@@ -180,14 +179,14 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir, branch }: { rootDir: string, branch?: string }): Promise<boolean> {
                         const branchName = branch || 'main'
-                        const lsRemoteResult = await $`git ls-remote origin`.cwd(rootDir).quiet().nothrow()
+                        const lsRemoteResult = await this.lib.$`git ls-remote origin`.cwd(rootDir).quiet().nothrow()
                         const lsRemoteOutput = lsRemoteResult.text().trim()
 
                         if (!lsRemoteOutput) {
                             return true
                         }
 
-                        const localHead = (await $`git rev-parse HEAD`.cwd(rootDir).quiet()).text().trim()
+                        const localHead = (await this.lib.$`git rev-parse HEAD`.cwd(rootDir).quiet()).text().trim()
                         const remoteHeadLine = lsRemoteOutput.split('\n').find((l: string) => l.includes(`refs/heads/${branchName}`))
                         const remoteHead = remoteHeadLine ? remoteHeadLine.split('\t')[0] : null
 
@@ -198,14 +197,14 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir, branch }: { rootDir: string, branch?: string }): Promise<void> {
                         const branchName = branch || 'main'
-                        await $`git push -u origin ${branchName} --tags`.cwd(rootDir)
+                        await this.lib.$`git push -u origin ${branchName} --tags`.cwd(rootDir)
                     }
                 },
                 forcePush: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir, branch }: { rootDir: string, branch?: string }): Promise<void> {
                         const branchName = branch || 'main'
-                        await $`git push --force origin ${branchName} --tags`.cwd(rootDir)
+                        await this.lib.$`git push --force origin ${branchName} --tags`.cwd(rootDir)
                     }
                 },
                 squashAllCommits: {
@@ -214,9 +213,9 @@ export async function capsule({
                         rootDir: string
                         message: string
                     }): Promise<void> {
-                        const rootCommit = await $`git rev-list --max-parents=0 HEAD`.cwd(rootDir).text()
-                        await $`git reset --soft ${rootCommit.trim()}`.cwd(rootDir)
-                        await $`git commit --amend -m ${message}`.cwd(rootDir)
+                        const rootCommit = await this.lib.$`git rev-list --max-parents=0 HEAD`.cwd(rootDir).text()
+                        await this.lib.$`git reset --soft ${rootCommit.trim()}`.cwd(rootDir)
+                        await this.lib.$`git commit --amend -m ${message}`.cwd(rootDir)
                     }
                 },
                 tag: {
@@ -225,7 +224,7 @@ export async function capsule({
                         rootDir: string
                         tag: string
                     }): Promise<void> {
-                        await $`git tag ${tag}`.cwd(rootDir)
+                        await this.lib.$`git tag ${tag}`.cwd(rootDir)
                     }
                 },
                 hasTag: {
@@ -234,9 +233,9 @@ export async function capsule({
                         rootDir: string
                         tag: string
                     }): Promise<{ exists: boolean, commit?: string }> {
-                        const localTagCheck = await $`git tag -l ${tag}`.cwd(rootDir).quiet().nothrow()
+                        const localTagCheck = await this.lib.$`git tag -l ${tag}`.cwd(rootDir).quiet().nothrow()
                         if (localTagCheck.text().trim() === tag) {
-                            const tagCommit = (await $`git rev-parse ${tag}^{}`.cwd(rootDir).quiet().nothrow()).text().trim()
+                            const tagCommit = (await this.lib.$`git rev-parse ${tag}^{}`.cwd(rootDir).quiet().nothrow()).text().trim()
                             return { exists: true, commit: tagCommit }
                         }
                         return { exists: false }
@@ -248,7 +247,7 @@ export async function capsule({
                         rootDir: string
                         tag: string
                     }): Promise<{ exists: boolean, commit?: string }> {
-                        const remoteTagCheck = await $`git ls-remote --tags origin ${tag}`.cwd(rootDir).quiet().nothrow()
+                        const remoteTagCheck = await this.lib.$`git ls-remote --tags origin ${tag}`.cwd(rootDir).quiet().nothrow()
                         const output = remoteTagCheck.text().trim()
                         if (output.length > 0) {
                             const commit = output.split(/\s+/)[0]
@@ -265,7 +264,7 @@ export async function capsule({
                         to?: string
                     }): Promise<string> {
                         const toRef = to || 'HEAD'
-                        const result = await $`git diff ${from} ${toRef}`.cwd(rootDir).quiet().nothrow()
+                        const result = await this.lib.$`git diff ${from} ${toRef}`.cwd(rootDir).quiet().nothrow()
                         return result.text().trim()
                     }
                 },
@@ -273,7 +272,7 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<boolean> {
                         try {
-                            await access(join(rootDir, '.git'), constants.F_OK)
+                            await this.lib.fs.access(this.lib.path.join(rootDir, '.git'), this.lib.fs.F_OK)
                             return true
                         } catch {
                             return false
@@ -283,16 +282,16 @@ export async function capsule({
                 initBare: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<void> {
-                        await mkdir(rootDir, { recursive: true })
+                        await this.lib.fs.mkdir(rootDir, { recursive: true })
 
                         let isBareRepo = false
                         try {
-                            await access(join(rootDir, 'HEAD'), constants.F_OK)
+                            await this.lib.fs.access(this.lib.path.join(rootDir, 'HEAD'), this.lib.fs.F_OK)
                             isBareRepo = true
                         } catch { }
 
                         if (!isBareRepo) {
-                            await $`git init --bare`.cwd(rootDir).quiet()
+                            await this.lib.$`git init --bare`.cwd(rootDir).quiet()
                         }
                     }
                 },
@@ -302,7 +301,7 @@ export async function capsule({
                         rootDir: string
                         name: string
                     }): Promise<boolean> {
-                        const result = await $`git remote`.cwd(rootDir).quiet().nothrow()
+                        const result = await this.lib.$`git remote`.cwd(rootDir).quiet().nothrow()
                         const remotes = result.text().trim().split('\n').filter(Boolean)
                         return remotes.includes(name)
                     }
@@ -314,7 +313,7 @@ export async function capsule({
                         name: string
                         url: string
                     }): Promise<void> {
-                        await $`git remote add ${name} ${url}`.cwd(rootDir).quiet()
+                        await this.lib.$`git remote add ${name} ${url}`.cwd(rootDir).quiet()
                     }
                 },
                 setRemoteUrl: {
@@ -324,7 +323,7 @@ export async function capsule({
                         name: string
                         url: string
                     }): Promise<void> {
-                        await $`git remote set-url ${name} ${url}`.cwd(rootDir).quiet()
+                        await this.lib.$`git remote set-url ${name} ${url}`.cwd(rootDir).quiet()
                     }
                 },
                 pushToRemote: {
@@ -337,9 +336,9 @@ export async function capsule({
                     }): Promise<void> {
                         const branchName = branch || 'main'
                         if (force) {
-                            await $`git push --force ${remote} ${branchName}`.cwd(rootDir).quiet()
+                            await this.lib.$`git push --force ${remote} ${branchName}`.cwd(rootDir).quiet()
                         } else {
-                            await $`git push ${remote} ${branchName}`.cwd(rootDir).quiet()
+                            await this.lib.$`git push ${remote} ${branchName}`.cwd(rootDir).quiet()
                         }
                     }
                 }

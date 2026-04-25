@@ -25,7 +25,7 @@ export async function capsule({
 
                 lib: {
                     type: CapsulePropertyTypes.Mapping,
-                    value: '@stream44.studio/t44/caps/ProjectTestLib',
+                    value: '@stream44.studio/t44/caps/WorkspaceLib',
                 },
 
                 _rootTasks: {

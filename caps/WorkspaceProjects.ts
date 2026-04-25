@@ -347,23 +347,30 @@ export async function capsule({
                             return matchingRepositories
                         }
 
-                        // Strategy 2: Try path matching (absolute or relative from current directory)
-                        let targetPath: string
+                        // Strategy 2: Try path matching (absolute, or relative from current directory or workspace root)
+                        const targetPaths: string[] = []
                         if (workspaceProject.startsWith('/')) {
-                            targetPath = workspaceProject
+                            targetPaths.push(workspaceProject)
                         } else {
-                            targetPath = resolve(currentDir, workspaceProject)
+                            targetPaths.push(resolve(currentDir, workspaceProject))
+                            if (workspaceRootDir) {
+                                const fromRoot = resolve(workspaceRootDir, workspaceProject)
+                                if (!targetPaths.includes(fromRoot)) {
+                                    targetPaths.push(fromRoot)
+                                }
+                            }
                         }
 
                         for (const [repoName, repoConfig] of Object.entries(repositories)) {
                             if ((repoConfig as any).sourceDir) {
                                 const sourceDirPath = resolve((repoConfig as any).sourceDir)
-                                const rel = relative(targetPath, sourceDirPath)
-
-                                const isWithinOrEqual = rel === '' || !rel.startsWith('..')
-
-                                if (isWithinOrEqual) {
-                                    matchingRepositories[repoName] = repoConfig
+                                for (const targetPath of targetPaths) {
+                                    const rel = relative(targetPath, sourceDirPath)
+                                    const isWithinOrEqual = rel === '' || !rel.startsWith('..')
+                                    if (isWithinOrEqual) {
+                                        matchingRepositories[repoName] = repoConfig
+                                        break
+                                    }
                                 }
                             }
                         }
@@ -420,7 +427,7 @@ export async function capsule({
                         if (Object.keys(matchingRepositories).length === 0) {
                             const chalk = (await import('chalk')).default
                             console.log(chalk.red(`\nError: No repositories found matching '${workspaceProject}'.\n`))
-                            console.log(chalk.gray('Available repositories:'))
+                            console.log(chalk.gray('Configured publishing target repositories:'))
                             for (const repoName of Object.keys(repositories)) {
                                 console.log(chalk.gray(`  - ${repoName}`))
                             }
@@ -578,11 +585,12 @@ export async function capsule({
                             const sourceDir = project.sourceDir
                             const packageJsonPath = join(sourceDir, 'package.json')
 
-                            // Check if package.json exists
+                            // Create package.json if it doesn't exist
                             try {
                                 await stat(packageJsonPath)
                             } catch {
-                                continue
+                                const { writeFile } = await import('fs/promises')
+                                await writeFile(packageJsonPath, JSON.stringify({ name: projectName, private: true }, null, 4) + '\n')
                             }
 
                             // Check if descriptor already exists

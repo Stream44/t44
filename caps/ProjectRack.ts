@@ -17,6 +17,10 @@ export async function capsule({
                 as: '$ProjectRackConfig'
             },
             '#': {
+                lib: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceLib'
+                },
                 WorkspacePrompt: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspacePrompt'
@@ -40,19 +44,17 @@ export async function capsule({
 
                         const rackConfigStructKey = '#@stream44.studio/t44/structs/ProjectRackConfig'
                         if (!rackConfig?.name) {
-                            const chalk = (await import('chalk')).default
-
-                            console.log(chalk.cyan(`\n📦 Project Rack Setup\n`))
-                            console.log(chalk.gray(`   Workspace: ${workspaceConfig?.name || 'unknown'}`))
-                            console.log(chalk.gray(`   Root: ${workspaceConfig?.rootDir || 'unknown'}`))
-                            console.log(chalk.gray(''))
-                            console.log(chalk.gray('   The project rack holds an integrated set of projects which can be'))
-                            console.log(chalk.gray('   pulled into one or more workspaces.'))
-                            console.log(chalk.gray('   A workspace attached to a rack has access to all projects in the rack'))
-                            console.log(chalk.gray('   and is able to add more projects to the rack.'))
-                            console.log(chalk.gray('   All workspaces attached to a rack automatically sync their projects'))
-                            console.log(chalk.gray('   to the rack.'))
-                            console.log(chalk.gray(''))
+                            console.log(this.lib.chalk.cyan(`\n📦 Project Rack Setup\n`))
+                            console.log(this.lib.chalk.gray(`   Workspace: ${workspaceConfig?.name || 'unknown'}`))
+                            console.log(this.lib.chalk.gray(`   Root: ${workspaceConfig?.rootDir || 'unknown'}`))
+                            console.log(this.lib.chalk.gray(''))
+                            console.log(this.lib.chalk.gray('   The project rack holds an integrated set of projects which can be'))
+                            console.log(this.lib.chalk.gray('   pulled into one or more workspaces.'))
+                            console.log(this.lib.chalk.gray('   A workspace attached to a rack has access to all projects in the rack'))
+                            console.log(this.lib.chalk.gray('   and is able to add more projects to the rack.'))
+                            console.log(this.lib.chalk.gray('   All workspaces attached to a rack automatically sync their projects'))
+                            console.log(this.lib.chalk.gray('   to the rack.'))
+                            console.log(this.lib.chalk.gray(''))
 
                             // List existing project racks from registry
                             const existingRacks = await this.HomeRegistry.listRacks()
@@ -62,13 +64,13 @@ export async function capsule({
 
                             for (const rack of existingRacks) {
                                 choices.push({
-                                    name: `${rack.name}  ${chalk.gray(rack.did ? rack.did.substring(0, 50) + '...' : '')}`,
+                                    name: `${rack.name}  ${this.lib.chalk.gray(rack.did ? rack.did.substring(0, 50) + '...' : '')}`,
                                     value: { type: 'existing', name: rack.name }
                                 })
                             }
 
                             choices.push({
-                                name: chalk.yellow('+ Create a new project rack'),
+                                name: this.lib.chalk.yellow('+ Create a new project rack'),
                                 value: { type: 'create' }
                             })
 
@@ -105,8 +107,7 @@ export async function capsule({
                         let rackData = await this.HomeRegistry.getRack(rackName)
 
                         if (!rackData) {
-                            const chalk = (await import('chalk')).default
-                            console.log(chalk.cyan(`\n   Registering project rack '${rackName}'...\n`))
+                            console.log(this.lib.chalk.cyan(`\n   Registering project rack '${rackName}'...\n`))
 
                             const { generateKeypair } = await import('../lib/ucan.js')
                             const { did, privateKey } = await generateKeypair()
@@ -119,15 +120,14 @@ export async function capsule({
 
                             const rackPath = await this.HomeRegistry.setRack(rackName, rackData)
 
-                            console.log(chalk.green(`   ✓ Project rack registered at:`))
-                            console.log(chalk.green(`     ${rackPath}`))
-                            console.log(chalk.green(`   ✓ DID: ${rackData.did}\n`))
+                            console.log(this.lib.chalk.green(`   ✓ Project rack registered at:`))
+                            console.log(this.lib.chalk.green(`     ${rackPath}`))
+                            console.log(this.lib.chalk.green(`   ✓ DID: ${rackData.did}\n`))
                         } else {
-                            const chalk = (await import('chalk')).default
                             const rackPath = await this.HomeRegistry.getRackPath(rackName)
-                            console.log(chalk.green(`\n   ✓ Using existing project rack at:`))
-                            console.log(chalk.green(`     ${rackPath}`))
-                            console.log(chalk.green(`   ✓ DID: ${rackData.did}\n`))
+                            console.log(this.lib.chalk.green(`\n   ✓ Using existing project rack at:`))
+                            console.log(this.lib.chalk.green(`     ${rackPath}`))
+                            console.log(this.lib.chalk.green(`   ✓ DID: ${rackData.did}\n`))
                         }
 
                         // Store rack as object { name, identifier } in rack config struct

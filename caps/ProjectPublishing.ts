@@ -1,9 +1,4 @@
 
-import { join, resolve } from 'path'
-import { readFile, writeFile } from 'fs/promises'
-import chalk from 'chalk'
-import glob from 'fast-glob'
-
 // ── Provider Lifecycle Steps ─────────────────────────────────────────
 // Each provider capsule can implement any subset of these methods.
 // The orchestrator calls them in order for each repository's providers.
@@ -60,6 +55,10 @@ export async function capsule({
                 as: '$WorkspaceProjectsConfig'
             },
             '#': {
+                lib: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceLib'
+                },
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspaceConfig'
@@ -83,6 +82,78 @@ export async function capsule({
                 ProjectCatalogs: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/ProjectCatalogs'
+                },
+                _syncToRack: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { matchingProjectNames, abortOnFailure }: { matchingProjectNames?: Set<string>, abortOnFailure?: boolean }): Promise<boolean> {
+                        const rackName = await this.ProjectRack.getRackName()
+                        if (!rackName) return true
+
+                        const registryRootDir = await this.HomeRegistry.rootDir
+                        const rackStructDir = '@stream44.studio/t44/structs/ProjectRack'.replace(/\//g, '~')
+                        const rackCapsuleDir = '@stream44.studio/t44/caps/ProjectRepository'.replace(/\//g, '~')
+                        const projects = await this.WorkspaceProjects.list
+
+                        console.log(`[t44] Syncing project repos to project rack '${rackName}' ...\n`)
+
+                        for (const [projectName, projectData] of Object.entries(projects)) {
+                            if (matchingProjectNames && matchingProjectNames.size > 0 && !matchingProjectNames.has(projectName)) {
+                                continue
+                            }
+
+                            const project = projectData as any
+                            const projectDid = project.identifier?.did
+                            if (!projectDid) {
+                                console.log(`   ○ Skipping '${projectName}' (no project identifier)`)
+                                continue
+                            }
+
+                            const projectSourceDir = project.sourceDir
+                            const rackRepoDir = this.lib.path.join(registryRootDir, rackStructDir, rackName, rackCapsuleDir, projectDid)
+                            try {
+                                await this.ProjectRepository.initBare({ rootDir: rackRepoDir })
+
+                                const remoteName = '@stream44.studio/t44/caps/ProjectRack'
+                                const hasRemote = await this.ProjectRepository.hasRemote({ rootDir: projectSourceDir, name: remoteName })
+                                if (!hasRemote) {
+                                    await this.ProjectRepository.addRemote({ rootDir: projectSourceDir, name: remoteName, url: rackRepoDir })
+                                } else {
+                                    await this.ProjectRepository.setRemoteUrl({ rootDir: projectSourceDir, name: remoteName, url: rackRepoDir })
+                                }
+
+                                const branch = await this.ProjectRepository.getBranch({ rootDir: projectSourceDir })
+                                await this.ProjectRepository.pushToRemote({ rootDir: projectSourceDir, remote: remoteName, branch, force: true })
+
+                                console.log(`   ✓ Synced '${projectName}' to ${this.lib.chalk.magenta(rackRepoDir)}`)
+                            } catch (error: any) {
+                                console.log(this.lib.chalk.red(`\n   ✗ Failed to sync '${projectName}' to project rack '${rackName}'`))
+                                console.log(this.lib.chalk.red(`     ${error.message || error}`))
+                                if (abortOnFailure) {
+                                    console.log(this.lib.chalk.red(`[t44] ABORT: Rack sync failed. Not pushing to external providers.\n`))
+                                    return false
+                                }
+                            }
+                        }
+
+                        // Update projects.json catalog (maps project name → DID)
+                        const catalogPath = this.lib.path.join(registryRootDir, rackStructDir, rackName, rackCapsuleDir, 'projects.json')
+                        let catalog: Record<string, string> = {}
+                        try {
+                            const existing = await this.lib.fs.readFile(catalogPath, 'utf-8')
+                            catalog = JSON.parse(existing)
+                        } catch { }
+                        for (const [projectName, projectData] of Object.entries(projects)) {
+                            const project = projectData as any
+                            const projectDid = project.identifier?.did
+                            if (projectDid) {
+                                catalog[projectName] = projectDid
+                            }
+                        }
+                        await this.lib.fs.writeFile(catalogPath, JSON.stringify(catalog, null, 4) + '\n')
+
+                        console.log(`[t44] Rack sync complete.\n`)
+                        return true
+                    }
                 },
                 run: {
                     type: CapsulePropertyTypes.Function,
@@ -182,7 +253,7 @@ export async function capsule({
 
                         // ── Publishing API (passed to providers) ─────────────
                         const publishingApi = {
-                            getProjectionDir: (capsuleName: string) => join(
+                            getProjectionDir: (capsuleName: string) => this.lib.path.join(
                                 this.WorkspaceConfig.workspaceRootDir,
                                 '.~o/workspace.foundation/@stream44.studio~t44~caps~ProjectPublishing',
                                 capsuleName.replace(/\//g, '~')
@@ -192,8 +263,30 @@ export async function capsule({
                         // ── Load config ───────────────────────────────────────
                         const repositoriesConfig = await this.$WorkspaceRepositories.config
 
-                        if (!repositoriesConfig?.repositories) {
-                            throw new Error('No repositories configuration found')
+                        const hasRepositories = !!repositoriesConfig?.repositories
+
+                        if (!hasRepositories) {
+                            // No repositories configured — only sync to rack, skip all provider steps
+                            const matchingProjectNames = new Set<string>()
+                            if (projectSelector && projectSelector !== 'FORCE_FOR_ALL') {
+                                const workspaceConfig = await this.$WorkspaceConfig.config
+                                const workspaceRootDir = workspaceConfig?.rootDir
+                                if (workspaceRootDir) {
+                                    const relPath = this.lib.path.relative(workspaceRootDir, this.lib.path.resolve(projectSelector))
+                                    const topDir = relPath.split('/')[0]
+                                    matchingProjectNames.add(topDir)
+                                }
+                            }
+
+                            const rackName = await this.ProjectRack.getRackName()
+                            if (rackName) {
+                                await this.WorkspaceProjects.ensureIdentifiers()
+                                await this._syncToRack({ matchingProjectNames })
+                            } else {
+                                console.log('[t44] No project rack configured and no repositories configured. Nothing to push.\n')
+                            }
+                            console.log('[t44] No publishing repositories configured — skipping provider steps.')
+                            return
                         }
 
                         if (dangerouslyResetMain && !projectSelector) {
@@ -202,13 +295,39 @@ export async function capsule({
 
                         let matchingRepositories: Record<string, any>
 
+                        const isPublishingMode = !!(publishFilter || rc || release || bump)
+
                         if (!projectSelector || projectSelector === 'FORCE_FOR_ALL') {
                             matchingRepositories = repositoriesConfig.repositories
                         } else {
-                            matchingRepositories = await this.WorkspaceProjects.resolveMatchingRepositories({
-                                workspaceProject: projectSelector,
-                                repositories: repositoriesConfig.repositories
-                            })
+                            try {
+                                matchingRepositories = await this.WorkspaceProjects.resolveMatchingRepositories({
+                                    workspaceProject: projectSelector,
+                                    repositories: repositoriesConfig.repositories
+                                })
+                            } catch (err: any) {
+                                if (!isPublishingMode && err.message?.startsWith('No repositories found matching:')) {
+                                    // Not in publishing mode — check if selector matches a workspace project name
+                                    const projects = await this.WorkspaceProjects.list
+                                    const projectNames = Object.keys(projects)
+                                    const matchedProject = projectNames.find(name =>
+                                        name === projectSelector || name.startsWith(projectSelector) || projectSelector.includes(name)
+                                    )
+                                    if (matchedProject) {
+                                        // Selector matches a workspace project — sync to rack only
+                                        const matchingProjectNames = new Set<string>([matchedProject])
+                                        const rackName = await this.ProjectRack.getRackName()
+                                        if (rackName) {
+                                            await this.WorkspaceProjects.ensureIdentifiers()
+                                            await this._syncToRack({ matchingProjectNames })
+                                        } else {
+                                            console.log('[t44] No project rack configured. Nothing to push.\n')
+                                        }
+                                        return
+                                    }
+                                }
+                                throw err
+                            }
                         }
 
                         // ── Branch validation ───────────────────────────────
@@ -277,7 +396,7 @@ export async function capsule({
                             const ctx = {
                                 repoName,
                                 repoConfig,
-                                repoSourceDir: join((repoConfig as any).sourceDir),
+                                repoSourceDir: this.lib.path.join((repoConfig as any).sourceDir),
                                 options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                 metadata: {} as Record<string, any>,
                                 alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
@@ -293,7 +412,7 @@ export async function capsule({
                             const ctx = {
                                 repoName,
                                 repoConfig,
-                                repoSourceDir: join((repoConfig as any).sourceDir),
+                                repoSourceDir: this.lib.path.join((repoConfig as any).sourceDir),
                                 options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                 metadata: {} as Record<string, any>,
                                 alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
@@ -307,8 +426,8 @@ export async function capsule({
                         // ══════════════════════════════════════════════════════
                         const allRejFiles: string[] = []
                         for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            const projectSourceDir = join((repoConfig as any).sourceDir)
-                            const rejFiles = await glob('**/*.{rej,orig}', {
+                            const projectSourceDir = this.lib.path.join((repoConfig as any).sourceDir)
+                            const rejFiles = await this.lib.glob('**/*.{rej,orig}', {
                                 cwd: projectSourceDir,
                                 absolute: false,
                                 onlyFiles: true,
@@ -316,18 +435,18 @@ export async function capsule({
                                 ignore: ['**/node_modules/**', '**/.git/**']
                             })
                             for (const rejFile of rejFiles) {
-                                allRejFiles.push(join(projectSourceDir, rejFile))
+                                allRejFiles.push(this.lib.path.join(projectSourceDir, rejFile))
                             }
                         }
 
                         if (allRejFiles.length > 0) {
-                            console.log(chalk.red('\n[t44] ERROR: Found unresolved patch conflict files (.rej / .orig)\n'))
-                            console.log(chalk.red('The following files must be resolved and removed before publishing:\n'))
+                            console.log(this.lib.chalk.red('\n[t44] ERROR: Found unresolved patch conflict files (.rej / .orig)\n'))
+                            console.log(this.lib.chalk.red('The following files must be resolved and removed before publishing:\n'))
                             for (const rejFile of allRejFiles) {
-                                console.log(chalk.red(`   • ${rejFile}`))
+                                console.log(this.lib.chalk.red(`   • ${rejFile}`))
                             }
-                            console.log(chalk.yellow('\nThese files are created when `patch` fails to apply a hunk cleanly.'))
-                            console.log(chalk.yellow('Review each file, manually apply the changes, then delete them.\n'))
+                            console.log(this.lib.chalk.yellow('\nThese files are created when `patch` fails to apply a hunk cleanly.'))
+                            console.log(this.lib.chalk.yellow('Review each file, manually apply the changes, then delete them.\n'))
                             process.exit(1)
                         }
 
@@ -336,26 +455,15 @@ export async function capsule({
                         // ══════════════════════════════════════════════════════
                         console.log('[t44] Syncing source directories to stage repos ...\n')
                         const stageSourceDirs: Map<string, string> = new Map()
-                        const repoSourceChanges: Map<string, boolean> = new Map()
 
                         for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            const projectSourceDir = join((repoConfig as any).sourceDir)
+                            const projectSourceDir = this.lib.path.join((repoConfig as any).sourceDir)
                             const repoSourceDir = await this.ProjectRepository.getStagePath({ repoUri: repoName })
 
                             await this.ProjectRepository.init({ rootDir: repoSourceDir })
+                            await this.ProjectRepository.reset({ rootDir: repoSourceDir })
 
-                            // Reset to 'last-sync' tag if it exists — this is the
-                            // previous raw source state (pre-rename, pre-bump).
-                            // Comparing against this baseline lets git status
-                            // detect real source changes only.
-                            const hasLastSync = await this.ProjectRepository.hasTag({ rootDir: repoSourceDir, tag: 'last-sync' })
-                            if (hasLastSync.exists) {
-                                await this.ProjectRepository.resetHard({ rootDir: repoSourceDir, ref: 'last-sync' })
-                            } else {
-                                await this.ProjectRepository.reset({ rootDir: repoSourceDir })
-                            }
-
-                            const gitignorePath = join(projectSourceDir, '.gitignore')
+                            const gitignorePath = this.lib.path.join(projectSourceDir, '.gitignore')
                             await this.ProjectRepository.sync({
                                 rootDir: repoSourceDir,
                                 sourceDir: projectSourceDir,
@@ -363,13 +471,8 @@ export async function capsule({
                                 excludePatterns: repositoriesConfig.alwaysIgnore || []
                             })
 
-                            // Detect real source changes and commit synced state
-                            const hasSourceChanges = await this.ProjectRepository.hasChanges({ rootDir: repoSourceDir })
-                            repoSourceChanges.set(repoName, hasSourceChanges)
-                            await this.ProjectRepository.commit({ rootDir: repoSourceDir, message: 'sync' })
-
                             stageSourceDirs.set(repoName, repoSourceDir)
-                            console.log(`=> Synced '${repoName}' to: ${repoSourceDir}${hasSourceChanges ? '' : ' (no source changes)'}\n`)
+                            console.log(`=> Synced '${repoName}' to: ${repoSourceDir}\n`)
                         }
 
                         // ══════════════════════════════════════════════════════
@@ -386,12 +489,10 @@ export async function capsule({
 
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                                 const repoSourceDir = stageSourceDirs.get(repoName)!
-                                const hasSourceChanges = repoSourceChanges.get(repoName) ?? true
 
-                                // For --rc/--bump: only bump if source actually changed
-                                // For --release: always call bump (to strip -rc. suffix even without changes)
-                                if (!hasSourceChanges && !release) {
-                                    console.log(`=> Skipping bump for '${repoName}' (no source changes)\n`)
+                                const hasChanges = await this.ProjectRepository.hasChanges({ rootDir: repoSourceDir })
+                                if (!hasChanges) {
+                                    console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
                                     continue
                                 }
 
@@ -415,27 +516,6 @@ export async function capsule({
                             }
 
                             console.log('[t44] Version bump complete!\n')
-                        }
-
-                        // ══════════════════════════════════════════════════════
-                        // INTERNAL: Update last-sync baseline
-                        // After bump writes version back to source, re-sync
-                        // and commit+tag so next run's baseline includes the
-                        // bumped version (avoids false-positive change detection).
-                        // ══════════════════════════════════════════════════════
-                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            const repoSourceDir = stageSourceDirs.get(repoName)!
-                            const projectSourceDir = join((repoConfig as any).sourceDir)
-                            const gitignorePath = join(projectSourceDir, '.gitignore')
-
-                            await this.ProjectRepository.sync({
-                                rootDir: repoSourceDir,
-                                sourceDir: projectSourceDir,
-                                gitignorePath,
-                                excludePatterns: repositoriesConfig.alwaysIgnore || []
-                            })
-                            await this.ProjectRepository.commit({ rootDir: repoSourceDir, message: 'sync' })
-                            await this.ProjectRepository.moveTag({ rootDir: repoSourceDir, tag: 'last-sync' })
                         }
 
                         // ══════════════════════════════════════════════════════
@@ -492,19 +572,23 @@ export async function capsule({
                         // STEP 4: ensureRemote — ensure remote targets exist
                         // (e.g. create GitHub repos before git-scm tries to clone)
                         // ══════════════════════════════════════════════════════
-                        console.log('[t44] Ensuring remote targets ...\n')
-                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            const ctx = repoContexts.get(repoName)!
-                            await callProvidersForRepo('ensureRemote', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                        if (!isDryRun) {
+                            console.log('[t44] Ensuring remote targets ...\n')
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                const ctx = repoContexts.get(repoName)!
+                                await callProvidersForRepo('ensureRemote', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                            }
                         }
 
                         // ══════════════════════════════════════════════════════
                         // STEP 5: prepare — set up projection/stage dirs
                         // ══════════════════════════════════════════════════════
-                        console.log('[t44] Preparing providers ...\n')
-                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                            const ctx = repoContexts.get(repoName)!
-                            await callProvidersForRepo('prepare', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                        if (!isDryRun) {
+                            console.log('[t44] Preparing providers ...\n')
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                const ctx = repoContexts.get(repoName)!
+                                await callProvidersForRepo('prepare', repoName, repoConfig, ctx.repoSourceDir, ctx)
+                            }
                         }
 
                         // ══════════════════════════════════════════════════════
@@ -523,86 +607,20 @@ export async function capsule({
 
                         // ══════════════════════════════════════════════════════
                         // INTERNAL: Sync to project rack registry
+                        // (syncs ALL workspace projects, not just publishing repos)
                         // ══════════════════════════════════════════════════════
                         const rackName = await this.ProjectRack.getRackName()
                         if (rackName) {
-                            const registryRootDir = await this.HomeRegistry.rootDir
-                            const rackStructDir = '@stream44.studio/t44/structs/ProjectRack'.replace(/\//g, '~')
-                            const rackCapsuleDir = '@stream44.studio/t44/caps/ProjectRepository'.replace(/\//g, '~')
-                            const workspaceConfig = await this.$WorkspaceConfig.config
-                            const workspaceRootDir = workspaceConfig?.rootDir
-                            const projects = await this.WorkspaceProjects.list
-
-                            const matchingProjectNames = new Set<string>()
-                            if (workspaceRootDir) {
-                                const { resolve, relative } = await import('path')
-                                for (const [, repoConfig] of Object.entries(matchingRepositories)) {
-                                    const typedConfig = repoConfig as any
-                                    if (typedConfig.sourceDir) {
-                                        const resolvedSourceDir = resolve(typedConfig.sourceDir)
-                                        const relPath = relative(workspaceRootDir, resolvedSourceDir)
-                                        const topDir = relPath.split('/')[0]
-                                        matchingProjectNames.add(topDir)
-                                    }
-                                }
-                            }
-
-                            console.log(`[t44] Syncing project repos to project rack '${rackName}' ...\n`)
-
-                            for (const [projectName, projectData] of Object.entries(projects)) {
-                                if (matchingProjectNames.size > 0 && !matchingProjectNames.has(projectName)) {
-                                    continue
-                                }
-
-                                const project = projectData as any
-                                const projectDid = project.identifier?.did
-                                if (!projectDid) {
-                                    console.log(`   ○ Skipping '${projectName}' (no project identifier)`)
-                                    continue
-                                }
-
-                                const projectSourceDir = project.sourceDir
-                                const rackRepoDir = join(registryRootDir, rackStructDir, rackName, rackCapsuleDir, projectDid)
-                                try {
-                                    await this.ProjectRepository.initBare({ rootDir: rackRepoDir })
-
-                                    const remoteName = '@stream44.studio/t44/caps/ProjectRack'
-                                    const hasRemote = await this.ProjectRepository.hasRemote({ rootDir: projectSourceDir, name: remoteName })
-                                    if (!hasRemote) {
-                                        await this.ProjectRepository.addRemote({ rootDir: projectSourceDir, name: remoteName, url: rackRepoDir })
-                                    } else {
-                                        await this.ProjectRepository.setRemoteUrl({ rootDir: projectSourceDir, name: remoteName, url: rackRepoDir })
-                                    }
-
-                                    const branch = await this.ProjectRepository.getBranch({ rootDir: projectSourceDir })
-                                    await this.ProjectRepository.pushToRemote({ rootDir: projectSourceDir, remote: remoteName, branch, force: true })
-
-                                    console.log(`   ✓ Synced '${projectName}' to rack`)
-                                } catch (error: any) {
-                                    console.log(chalk.red(`\n   ✗ Failed to sync '${projectName}' to project rack '${rackName}'`))
-                                    console.log(chalk.red(`     ${error.message || error}`))
-                                    console.log(chalk.red(`[t44] ABORT: Rack sync failed. Not pushing to external providers.\n`))
-                                    return
-                                }
-                            }
-
-                            console.log(`[t44] Rack sync complete.\n`)
+                            await this.WorkspaceProjects.ensureIdentifiers()
+                            const rackOk = await this._syncToRack({ abortOnFailure: true })
+                            if (!rackOk) return
                         }
 
                         // ══════════════════════════════════════════════════════
                         // STEP 7: push — publish/push to providers
                         // ══════════════════════════════════════════════════════
                         if (isDryRun) {
-                            console.log('[t44] DRY-RUN: Skipping publishing (would publish packages here)\n')
-
-                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                                console.log(`\n=> Processing repository '${repoName}' ...\n`)
-                                const providers = resolveRepoProviders(repoConfig as any, globalProviders)
-                                for (const providerConfig of providers) {
-                                    if (!await isProviderIncluded(providerConfig)) continue
-                                    console.log(`  -> DRY-RUN: Skipping provider '${providerConfig.capsule}'\n`)
-                                }
-                            }
+                            // Skip publishing in dry-run mode
                         } else {
                             console.log('[t44] Publishing packages ...\n')
 
@@ -651,7 +669,7 @@ export async function capsule({
                                 const ctx = repoContexts.get(repoName)!
 
                                 // Update base catalog entry once per repo
-                                const repoSourceDir_ = resolve((repoConfig as any).sourceDir)
+                                const repoSourceDir_ = this.lib.path.resolve((repoConfig as any).sourceDir)
                                 const workspaceProjectName = await this.WorkspaceProjects.findProjectForPath({ targetPath: repoSourceDir_ }) || ''
                                 await this.ProjectCatalogs.updateCatalogRepository({
                                     repoName,

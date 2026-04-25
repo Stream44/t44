@@ -17,6 +17,9 @@ export async function capsule({
             '#@stream44.studio/t44/structs/WorkspaceCliConfig': {
                 as: '$WorkspaceCliConfig'
             },
+            '#@stream44.studio/t44/structs/WorkspaceShellConfig': {
+                as: '$ShellConfig'
+            },
             '#': {
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
@@ -26,12 +29,12 @@ export async function capsule({
                     type: CapsulePropertyTypes.GetterFunction,
                     value: async function (this: any): Promise<object> {
 
-                        const config = await this.WorkspaceConfig.config as any
+                        const shellConfig = await this.$ShellConfig.config as any
                         const self = this
 
                         const commands: Record<string, (commandArgs?: any) => Promise<void>> = {}
-                        for (const commandName in config.shell.commands) {
-                            const commandConfig = config.shell.commands[commandName]
+                        for (const commandName in shellConfig?.shell?.commands || {}) {
+                            const commandConfig = shellConfig.shell.commands[commandName]
 
                             commands[commandName] = async function () {
                                 throw new Error(`Shell commands cannot be run directly! They must be sourced into the shell.`)
@@ -44,15 +47,15 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, argv: string[]): Promise<void> {
 
-                        const config = await this.WorkspaceConfig.config as any
+                        const shellConfig = await this.$ShellConfig.config as any
                         const cliConfig = await this.$WorkspaceCliConfig.config
                         const shellCommands = await this.shellCommands as Record<string, (args?: any) => Promise<void>>
 
                         const program = new Command()
                             .option('--yes', 'Confirm all questions with default values.')
 
-                        for (const commandName in config.shell.commands) {
-                            const commandConfig = config.shell.commands[commandName]
+                        for (const commandName in shellConfig?.shell?.commands || {}) {
+                            const commandConfig = shellConfig.shell.commands[commandName]
 
                             // If this is a cliCommand reference, pull description and arguments from CLI command
                             let description = commandConfig.description || ''

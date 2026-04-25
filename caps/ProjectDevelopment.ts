@@ -1,10 +1,4 @@
 
-import { join, resolve, relative } from 'path'
-import { readdir, readFile, access } from 'fs/promises'
-import { constants } from 'fs'
-import { $ } from 'bun'
-import chalk from 'chalk'
-
 export async function capsule({
     encapsulate,
     CapsulePropertyTypes,
@@ -18,6 +12,10 @@ export async function capsule({
         '#@stream44.studio/encapsulate/spine-contracts/CapsuleSpineContract.v0': {
             '#@stream44.studio/encapsulate/structs/Capsule': {},
             '#': {
+                lib: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceLib'
+                },
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspaceConfig'
@@ -53,10 +51,10 @@ export async function capsule({
                             if (!sourceDir) continue
 
                             // Check project root for dev script
-                            const projectPkgPath = join(sourceDir, 'package.json')
+                            const projectPkgPath = this.lib.path.join(sourceDir, 'package.json')
                             try {
-                                await access(projectPkgPath, constants.F_OK)
-                                const pkgContent = await readFile(projectPkgPath, 'utf-8')
+                                await this.lib.fs.access(projectPkgPath, this.lib.fs.F_OK)
+                                const pkgContent = await this.lib.fs.readFile(projectPkgPath, 'utf-8')
                                 const pkg = JSON.parse(pkgContent)
                                 if (pkg.scripts?.dev) {
                                     devTargets.push({
@@ -70,17 +68,17 @@ export async function capsule({
                             } catch { }
 
                             // Check packages/* for dev scripts
-                            const packagesDir = join(sourceDir, 'packages')
+                            const packagesDir = this.lib.path.join(sourceDir, 'packages')
                             try {
-                                await access(packagesDir, constants.F_OK)
-                                const packageEntries = await readdir(packagesDir, { withFileTypes: true })
+                                await this.lib.fs.access(packagesDir, this.lib.fs.F_OK)
+                                const packageEntries = await this.lib.fs.readdir(packagesDir, { withFileTypes: true })
                                 for (const entry of packageEntries) {
                                     if (!entry.isDirectory()) continue
-                                    const pkgDir = join(packagesDir, entry.name)
-                                    const pkgJsonPath = join(pkgDir, 'package.json')
+                                    const pkgDir = this.lib.path.join(packagesDir, entry.name)
+                                    const pkgJsonPath = this.lib.path.join(pkgDir, 'package.json')
                                     try {
-                                        await access(pkgJsonPath, constants.F_OK)
-                                        const pkgContent = await readFile(pkgJsonPath, 'utf-8')
+                                        await this.lib.fs.access(pkgJsonPath, this.lib.fs.F_OK)
+                                        const pkgContent = await this.lib.fs.readFile(pkgJsonPath, 'utf-8')
                                         const pkg = JSON.parse(pkgContent)
                                         if (pkg.scripts?.dev) {
                                             devTargets.push({
@@ -98,7 +96,7 @@ export async function capsule({
                         }
 
                         if (devTargets.length === 0) {
-                            console.log(chalk.yellow('\nNo projects or packages with a "dev" script found.\n'))
+                            console.log(this.lib.chalk.yellow('\nNo projects or packages with a "dev" script found.\n'))
                             return
                         }
 
@@ -109,7 +107,7 @@ export async function capsule({
 
                         if (projectSelector) {
                             // Match by project name, package path, package name, or resolved path
-                            const resolvedSelector = resolve(process.cwd(), projectSelector)
+                            const resolvedSelector = this.lib.path.resolve(process.cwd(), projectSelector)
 
                             const matches = devTargets.filter(t => {
                                 // Name-based matching
@@ -120,7 +118,7 @@ export async function capsule({
                                     return true
                                 }
                                 // Path-based matching: resolved selector matches or contains the target dir
-                                const resolvedDir = resolve(t.dir)
+                                const resolvedDir = this.lib.path.resolve(t.dir)
                                 if (resolvedDir === resolvedSelector || resolvedDir.startsWith(resolvedSelector + '/')) {
                                     return true
                                 }
@@ -128,13 +126,13 @@ export async function capsule({
                             })
 
                             if (matches.length === 0) {
-                                console.log(chalk.red(`\nNo dev script found matching '${projectSelector}'.\n`))
-                                console.log(chalk.gray('Available targets:'))
+                                console.log(this.lib.chalk.red(`\nNo dev script found matching '${projectSelector}'.\n`))
+                                console.log(this.lib.chalk.gray('Available targets:'))
                                 for (const t of devTargets) {
                                     const typeTag = t.type === 'project'
-                                        ? chalk.cyan('[project]')
-                                        : chalk.magenta('[package]')
-                                    console.log(chalk.gray(`  - ${t.label} ${typeTag}`))
+                                        ? this.lib.chalk.cyan('[project]')
+                                        : this.lib.chalk.magenta('[package]')
+                                    console.log(this.lib.chalk.gray(`  - ${t.label} ${typeTag}`))
                                 }
                                 console.log('')
                                 return
@@ -151,11 +149,11 @@ export async function capsule({
                                     matches.length = 0
                                     matches.push(exactMatch)
                                 } else {
-                                    console.log(chalk.red(`\nMultiple dev targets match '${projectSelector}':\n`))
+                                    console.log(this.lib.chalk.red(`\nMultiple dev targets match '${projectSelector}':\n`))
                                     for (const m of matches) {
-                                        console.log(chalk.gray(`  - ${m.label}`))
+                                        console.log(this.lib.chalk.gray(`  - ${m.label}`))
                                     }
-                                    console.log(chalk.red('\nPlease be more specific.\n'))
+                                    console.log(this.lib.chalk.red('\nPlease be more specific.\n'))
                                     return
                                 }
                             }
@@ -163,19 +161,19 @@ export async function capsule({
                             selectedTarget = matches[0]
                         } else {
                             // Interactive picker
-                            console.log(chalk.cyan('\nSelect a dev server to run:\n'))
+                            console.log(this.lib.chalk.cyan('\nSelect a dev server to run:\n'))
 
                             const choices: Array<{ name: string; value: number }> = []
 
                             for (let i = 0; i < devTargets.length; i++) {
                                 const t = devTargets[i]
                                 const typeTag = t.type === 'project'
-                                    ? chalk.cyan('[project]')
-                                    : chalk.magenta('[package]')
-                                const scriptPreview = chalk.gray(t.script)
+                                    ? this.lib.chalk.cyan('[project]')
+                                    : this.lib.chalk.magenta('[package]')
+                                const scriptPreview = this.lib.chalk.gray(t.script)
 
                                 choices.push({
-                                    name: `${chalk.white(t.label)}  ${typeTag}  ${scriptPreview}`,
+                                    name: `${this.lib.chalk.white(t.label)}  ${typeTag}  ${scriptPreview}`,
                                     value: i
                                 })
                             }
@@ -189,7 +187,7 @@ export async function capsule({
                                 selectedTarget = devTargets[selectedIndex]
                             } catch (error: any) {
                                 if (error.message?.includes('SIGINT') || error.message?.includes('force closed')) {
-                                    console.log(chalk.red('\nABORTED\n'))
+                                    console.log(this.lib.chalk.red('\nABORTED\n'))
                                     return
                                 }
                                 throw error
@@ -198,23 +196,23 @@ export async function capsule({
 
                         // Run the dev script interactively
                         const typeTag = selectedTarget.type === 'project'
-                            ? chalk.cyan('[project]')
-                            : chalk.magenta('[package]')
+                            ? this.lib.chalk.cyan('[project]')
+                            : this.lib.chalk.magenta('[package]')
 
-                        console.log(chalk.green(`\n=> Starting dev server for ${selectedTarget.label} ${typeTag}\n`))
-                        console.log(chalk.gray(`   Directory: ${selectedTarget.dir}`))
-                        console.log(chalk.gray(`   Script:    ${selectedTarget.script}\n`))
+                        console.log(this.lib.chalk.green(`\n=> Starting dev server for ${selectedTarget.label} ${typeTag}\n`))
+                        console.log(this.lib.chalk.gray(`   Directory: ${selectedTarget.dir}`))
+                        console.log(this.lib.chalk.gray(`   Script:    ${selectedTarget.script}\n`))
 
                         // Check if node_modules exists; if not, check for dependencies and run bun install
-                        const nodeModulesDir = join(selectedTarget.dir, 'node_modules')
+                        const nodeModulesDir = this.lib.path.join(selectedTarget.dir, 'node_modules')
                         let needsInstall = false
                         try {
-                            await access(nodeModulesDir, constants.F_OK)
+                            await this.lib.fs.access(nodeModulesDir, this.lib.fs.F_OK)
                         } catch {
                             // node_modules missing — check if package.json has dependencies
-                            const pkgPath = join(selectedTarget.dir, 'package.json')
+                            const pkgPath = this.lib.path.join(selectedTarget.dir, 'package.json')
                             try {
-                                const pkgContent = await readFile(pkgPath, 'utf-8')
+                                const pkgContent = await this.lib.fs.readFile(pkgPath, 'utf-8')
                                 const pkg = JSON.parse(pkgContent)
                                 if ((pkg.dependencies && Object.keys(pkg.dependencies).length > 0) ||
                                     (pkg.devDependencies && Object.keys(pkg.devDependencies).length > 0)) {
@@ -224,7 +222,7 @@ export async function capsule({
                         }
 
                         if (needsInstall) {
-                            console.log(chalk.yellow(`   Installing dependencies ...\n`))
+                            console.log(this.lib.chalk.yellow(`   Installing dependencies ...\n`))
                             const installProc = Bun.spawn(['bun', 'install'], {
                                 cwd: selectedTarget.dir,
                                 stdin: 'inherit',
