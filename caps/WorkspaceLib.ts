@@ -1,7 +1,30 @@
 import * as path from 'path'
 import * as fsPromises from 'fs/promises'
-import { constants as fsConstants, existsSync } from 'fs'
+import { constants as fsConstants } from 'fs'
+import * as crypto from 'node:crypto'
+
+const throwSyncForbidden = (name: string, asyncSuggestion: string) => () => {
+    throw new Error(
+        `lib.fs.${name} is disallowed — use \`await lib.fs.${asyncSuggestion}\` instead. ` +
+        `All filesystem I/O in capsules must be async so callers retain control of yielding.`,
+    )
+}
 import { spawn, $ } from 'bun'
+import { tmpdir } from 'os'
+
+// Detect bun test runner — Bun.spawn pipes break under bun test
+let _insideBunTest: boolean | null = null
+function isInsideBunTest(): boolean {
+    if (_insideBunTest === null) {
+        try {
+            (require('bun:test') as any).afterAll(() => {})
+            _insideBunTest = true
+        } catch {
+            _insideBunTest = false
+        }
+    }
+    return _insideBunTest
+}
 import * as childProcess from 'child_process'
 import dgram from 'node:dgram'
 import * as jsYaml from 'js-yaml'
@@ -33,13 +56,34 @@ export async function capsule({
                     value: {
                         ...fsPromises,
                         ...fsConstants,
-                        existsSync,
+                        /**
+                         * Async existence check. Use this instead of the
+                         * deprecated callback `fs.exists` or the sync
+                         * `existsSync` — both of which are blocked here.
+                         */
+                        exists: async (p: string): Promise<boolean> => {
+                            try { await fsPromises.access(p); return true } catch { return false }
+                        },
+                        existsSync: throwSyncForbidden('existsSync', 'exists(path)'),
+                        readFileSync: throwSyncForbidden('readFileSync', 'readFile(path, encoding?)'),
+                        writeFileSync: throwSyncForbidden('writeFileSync', 'writeFile(path, data)'),
+                        mkdirSync: throwSyncForbidden('mkdirSync', 'mkdir(path, opts)'),
                     },
                 },
 
                 childProcess: {
                     type: CapsulePropertyTypes.Constant,
                     value: childProcess,
+                },
+
+                /**
+                 * `node:crypto` re-exported for use in capsules — primary
+                 * use is `lib.crypto.createHash('sha256')` for streaming
+                 * file hashing without pulling node:crypto into each cap.
+                 */
+                crypto: {
+                    type: CapsulePropertyTypes.Constant,
+                    value: crypto,
                 },
 
                 dgram: {
@@ -92,13 +136,53 @@ export async function capsule({
                             detached = false
                         } = options;
 
-                        const outputData = { stdout: '', stderr: '' };
                         const mergedEnv = { ...process.env, ...env };
 
                         if (verbose && env.NODE_ENV) {
                             console.log('[spawnProcess] Setting NODE_ENV to:', env.NODE_ENV);
                             console.log('[spawnProcess] Merged env NODE_ENV:', mergedEnv.NODE_ENV);
                         }
+
+                        // Under bun test, Bun.spawn pipes silently lose data.
+                        // Fall back to shell redirection into temp files.
+                        // See: https://github.com/oven-sh/bun/issues/24690
+                        if (isInsideBunTest() && waitForExit && !waitForReady && !detached) {
+                            const id = Math.random().toString(36).slice(2, 10)
+                            const stdoutFile = path.join(tmpdir(), `t44-spawn-stdout-${id}.tmp`)
+                            const stderrFile = path.join(tmpdir(), `t44-spawn-stderr-${id}.tmp`)
+
+                            const quoted = cmd.map((a: string) => `'${a.replace(/'/g, "'\\''")}'`).join(' ')
+                            const shellCmd = (showOutput || verbose)
+                                ? `${quoted} > >(tee '${stdoutFile}') 2> >(tee '${stderrFile}' >&2)`
+                                : `${quoted} > '${stdoutFile}' 2> '${stderrFile}'`
+
+                            const proc = spawn({
+                                cmd: ['bash', '-c', shellCmd],
+                                cwd,
+                                stdout: (showOutput || verbose) ? 'inherit' : 'ignore',
+                                stderr: (showOutput || verbose) ? 'inherit' : 'ignore',
+                                env: mergedEnv
+                            })
+                            await proc.exited
+
+                            let stdout = '', stderr = ''
+                            try { stdout = await fsPromises.readFile(stdoutFile, 'utf-8') } catch {}
+                            try { stderr = await fsPromises.readFile(stderrFile, 'utf-8') } catch {}
+                            fsPromises.rm(stdoutFile, { force: true }).catch(() => {})
+                            fsPromises.rm(stderrFile, { force: true }).catch(() => {})
+
+                            return {
+                                process: proc,
+                                stdout,
+                                stderr,
+                                exitCode: proc.exitCode ?? 0,
+                                getStdout: () => stdout,
+                                getStderr: () => stderr
+                            }
+                        }
+
+                        // Normal path: Bun.spawn with piped stdio
+                        const outputData = { stdout: '', stderr: '' };
 
                         const proc = spawn({
                             cmd,

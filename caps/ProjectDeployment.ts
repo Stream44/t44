@@ -48,7 +48,10 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { args }: any): Promise<void> {
 
-                        let { projectSelector, deprovision, yes } = args
+                        let { projectSelector, deprovision, diff, yes } = args
+                        const diffCapsuleUri: string | null = typeof diff === 'string' && diff.length > 0
+                            ? (diff.startsWith('#') ? diff.substring(1) : diff)
+                            : null
 
                         // ── Dynamic provider loader ──────────────────────────
                         const providerCache = new Map<string, any>()
@@ -104,6 +107,38 @@ export async function capsule({
                             }
                         }
 
+                        // ── Helper: call provider.diff() for providers matching the capsule URI ──
+                        const diffProvidersForAlias = async (
+                            aliasConfig: any,
+                            ctx: { alias: string; projectName: string; capsuleUri: string },
+                        ): Promise<number> => {
+                            const providers = resolveProviders(aliasConfig)
+                            let matched = 0
+                            for (const providerConfig of providers) {
+                                const providerUri = providerConfig.capsule.startsWith('#')
+                                    ? providerConfig.capsule.substring(1)
+                                    : providerConfig.capsule
+                                if (providerUri !== ctx.capsuleUri) continue
+                                matched++
+
+                                const provider = await getProvider(providerConfig.capsule)
+                                if (typeof provider.diff !== 'function') {
+                                    console.log(chalk.yellow(
+                                        `  Provider '${providerUri}' does not implement diff() — skipping.\n`
+                                    ))
+                                    continue
+                                }
+
+                                const config = { ...aliasConfig, provider: providerConfig }
+                                await provider.diff({
+                                    alias: ctx.alias,
+                                    config,
+                                    workspaceProjectName: ctx.projectName,
+                                })
+                            }
+                            return matched
+                        }
+
                         // ══════════════════════════════════════════════════════
                         // STEP 1: Load config & resolve matching deployments
                         // ══════════════════════════════════════════════════════
@@ -114,6 +149,12 @@ export async function capsule({
                         }
 
                         let matchingDeployments: Record<string, any> = {}
+
+                        if (diffCapsuleUri && !projectSelector) {
+                            throw new Error(
+                                '--diff requires a project selector. Usage: t44 deploy <project> --diff "<capsule-uri>"'
+                            )
+                        }
 
                         if (!projectSelector) {
                             const selected = await selectProjectInteractively.call(this, {
@@ -130,6 +171,31 @@ export async function capsule({
                                 workspaceProject: projectSelector,
                                 deployments: deploymentConfig.deployments
                             })
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // STEP 2 (alt): --diff branch — no deploy / no deprovision
+                        // ══════════════════════════════════════════════════════
+                        if (diffCapsuleUri) {
+                            let totalMatched = 0
+                            for (const [projectName, projectConfig] of Object.entries(matchingDeployments)) {
+                                console.log(`\n=> Diffing project '${projectName}' against '${diffCapsuleUri}' ...\n`)
+                                const orderedAliases = orderAliasesByDependencies(projectConfig)
+                                for (const alias of orderedAliases) {
+                                    const matched = await diffProvidersForAlias(projectConfig[alias], {
+                                        alias,
+                                        projectName,
+                                        capsuleUri: diffCapsuleUri,
+                                    })
+                                    totalMatched += matched
+                                }
+                            }
+                            if (totalMatched === 0) {
+                                console.log(chalk.yellow(
+                                    `\nNo provider matching '${diffCapsuleUri}' found in the selected project(s).\n`
+                                ))
+                            }
+                            return
                         }
 
                         // ══════════════════════════════════════════════════════
@@ -162,9 +228,14 @@ export async function capsule({
                                 console.log(`\n=> ${stepText} provider project alias '${alias}' for workspace project '${projectName}' ...\n`)
 
                                 // ── Build step (deploy only) ──────────────────
+                                // Aliases that only orchestrate side-effects (e.g.
+                                // a DNS-only provider) can opt out by setting
+                                // `build: false` — the framework otherwise auto-
+                                // runs the project's `build` script when the alias
+                                // has a `sourceDir`.
                                 if (!deprovision) {
                                     const aliasConfig = projectConfig[alias]
-                                    if (aliasConfig.sourceDir) {
+                                    if (aliasConfig.sourceDir && aliasConfig.build !== false) {
                                         await runBuildIfAvailable(aliasConfig.sourceDir)
                                     }
                                 }

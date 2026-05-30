@@ -62,8 +62,14 @@ export function isPlainObject(v: any): v is Record<string, any> {
     return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
+const _findPackageJsonCache = new Map<string, { name: string; version: string } | null>()
+
 export async function findPackageJson(startPath: string): Promise<{ name: string; version: string } | null> {
-    let currentDir = dirname(startPath);
+    const cacheKey = dirname(startPath);
+    const cached = _findPackageJsonCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+
+    let currentDir = cacheKey;
     const root = '/';
 
     while (currentDir !== root) {
@@ -73,10 +79,12 @@ export async function findPackageJson(startPath: string): Promise<{ name: string
             const packageData = JSON.parse(content);
 
             if (packageData.name && packageData.version) {
-                return {
+                const result = {
                     name: packageData.name,
                     version: packageData.version
                 };
+                _findPackageJsonCache.set(cacheKey, result);
+                return result;
             }
         } catch (error) {
             // package.json not found or invalid, continue searching
@@ -87,6 +95,7 @@ export async function findPackageJson(startPath: string): Promise<{ name: string
         currentDir = parentDir;
     }
 
+    _findPackageJsonCache.set(cacheKey, null);
     return null;
 }
 

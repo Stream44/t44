@@ -18,6 +18,10 @@ export async function capsule({
                 as: '$config'
             },
             '#': {
+                lib: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceLib'
+                },
                 WorkspaceConfig: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspaceConfig'
@@ -57,6 +61,10 @@ export async function capsule({
                 WorkspaceInit: {
                     type: CapsulePropertyTypes.Mapping,
                     value: '@stream44.studio/t44/caps/WorkspaceInit'
+                },
+                WorkspaceDiff: {
+                    type: CapsulePropertyTypes.Mapping,
+                    value: '@stream44.studio/t44/caps/WorkspaceDiff'
                 },
                 WorkspaceInfo: {
                     type: CapsulePropertyTypes.Mapping,
@@ -138,6 +146,8 @@ export async function capsule({
                                         await self.ProjectTesting.run({ args: commandArgs })
                                     } else if (capsule === '@stream44.studio/t44/caps/WorkspaceInit') {
                                         await self.WorkspaceInit.run({ args: commandArgs })
+                                    } else if (capsule === '@stream44.studio/t44/caps/WorkspaceDiff') {
+                                        await self.WorkspaceDiff.run({ args: commandArgs })
                                     } else if (capsule === '@stream44.studio/t44/caps/WorkspaceInfo') {
                                         await self.WorkspaceInfo.run({ args: commandArgs })
                                     } else if (capsule === '@stream44.studio/t44/caps/WorkspaceModel') {
@@ -328,48 +338,16 @@ export async function capsule({
                         const t44Bin = join(capsuleDir, '../bin/t44')
                         const bunExe = Bun.which('bun')
 
-                        const mergedEnv = { ...process.env, ...envOverrides }
-                        const proc = Bun.spawn([bunExe!, t44Bin, ...args, '--yes'], {
-                            env: mergedEnv,
+                        const result = await this.lib.spawnProcess({
+                            cmd: [bunExe!, t44Bin, ...args, '--yes'],
                             cwd,
-                            stdout: 'pipe',
-                            stderr: 'pipe',
-                            stdin: 'pipe',
-                        })
-                        proc.stdin.end()
-
-                        const timer = setTimeout(() => proc.kill(), timeout)
-
-                        const stdoutChunks: string[] = []
-                        const stderrChunks: string[] = []
-
-                        const verbose = !!process.env.VERBOSE
-
-                        const stdoutWriter = new WritableStream({
-                            write(chunk) {
-                                const text = new TextDecoder().decode(chunk)
-                                stdoutChunks.push(text)
-                                if (verbose) process.stdout.write(text)
-                            }
+                            env: envOverrides,
+                            waitForExit: true,
+                            showOutput: !!process.env.VERBOSE,
+                            verbose: !!process.env.VERBOSE,
                         })
 
-                        const stderrWriter = new WritableStream({
-                            write(chunk) {
-                                const text = new TextDecoder().decode(chunk)
-                                stderrChunks.push(text)
-                                if (verbose) process.stderr.write(text)
-                            }
-                        })
-
-                        const [exitCode] = await Promise.all([
-                            proc.exited,
-                            proc.stdout.pipeTo(stdoutWriter),
-                            proc.stderr.pipeTo(stderrWriter),
-                        ])
-
-                        clearTimeout(timer)
-
-                        return { exitCode, stdout: stdoutChunks.join(''), stderr: stderrChunks.join('') }
+                        return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
                     }
                 },
                 runCli: {
@@ -389,10 +367,21 @@ export async function capsule({
                         this.cliOptions = { yes: hasYesFlag, now: hasNowFlag }
                         this.WorkspacePrompt.cliOptions = { yes: hasYesFlag }
 
+                        // Detect help-mode early so `t44 --help`, `t44 <cmd> --help`,
+                        // and `t44 help <cmd>` skip the workspace-ensure pipeline
+                        // (which prompts for home dir, keys, etc.) and just render
+                        // help text. Without this, asking for help still triggers
+                        // the interactive bootstrap.
+                        const userArgs = argv.slice(2)
+                        const isHelpMode =
+                            userArgs.includes('--help')
+                            || userArgs.includes('-h')
+                            || userArgs[0] === 'help'
+
                         // Detect 'init' flags early so we can validate and pre-populate config
                         // before the ensure steps run
                         const initFromIndex = argv.indexOf('init')
-                        if (initFromIndex !== -1) {
+                        if (initFromIndex !== -1 && !isHelpMode) {
                             const fromFlagIndex = argv.indexOf('--from', initFromIndex)
                             const atFlagIndex = argv.indexOf('--at', initFromIndex)
 
@@ -418,39 +407,45 @@ export async function capsule({
                             }
                         }
 
-                        // Ensure workspace config base fields (rootDir, rootConfigFilepath)
-                        await this.WorkspaceConfig.ensureConfigBase()
+                        // Skip workspace-ensure pipeline when only rendering help —
+                        // it would otherwise prompt for home dir, keys, etc. We
+                        // still register commands below so commander can describe
+                        // them in the help output.
+                        if (!isHelpMode) {
+                            // Ensure workspace config base fields (rootDir, rootConfigFilepath)
+                            await this.WorkspaceConfig.ensureConfigBase()
 
-                        // Ensure home registry directory is configured
-                        await this.HomeRegistry.ensureRootDir()
+                            // Ensure home registry directory is configured
+                            await this.HomeRegistry.ensureRootDir()
 
-                        // Ensure workspace identity fields (name, identifier) — requires registry
-                        await this.WorkspaceConfig.ensureConfigIdentity()
+                            // Ensure workspace identity fields (name, identifier) — requires registry
+                            await this.WorkspaceConfig.ensureConfigIdentity()
 
-                        // Validate identities: adopt from registry if only name is set, halt on mismatch
-                        const identityValid = await this.validateIdentities()
-                        if (!identityValid) return
+                            // Validate identities: adopt from registry if only name is set, halt on mismatch
+                            const identityValid = await this.validateIdentities()
+                            if (!identityValid) return
 
-                        // Ensure root key is configured and valid
-                        const rootKey = await this.RootKey.ensureKey()
-                        if (!rootKey) return
+                            // Ensure root key is configured and valid
+                            const rootKey = await this.RootKey.ensureKey()
+                            if (!rootKey) return
 
-                        // Ensure signing key is configured and valid
-                        const signingKey = await this.SigningKey.ensureKey()
-                        if (!signingKey) return
+                            // Ensure signing key is configured and valid
+                            const signingKey = await this.SigningKey.ensureKey()
+                            if (!signingKey) return
 
-                        // Ensure workspace key is configured
-                        await this.WorkspaceKey.ensureKey()
+                            // Ensure workspace key is configured
+                            await this.WorkspaceKey.ensureKey()
 
-                        // Ensure project rack is configured
-                        await this.ProjectRack.ensureRack()
+                            // Ensure project rack is configured
+                            await this.ProjectRack.ensureRack()
 
-                        // Ensure project identifiers exist in package.json descriptors
-                        await this.WorkspaceProjects.ensureIdentifiers()
+                            // Ensure project identifiers exist in package.json descriptors
+                            await this.WorkspaceProjects.ensureIdentifiers()
 
-                        // Validate project catalogs configuration
-                        const catalogsValid = await this.ProjectCatalogs.validate()
-                        if (!catalogsValid) return
+                            // Validate project catalogs configuration
+                            const catalogsValid = await this.ProjectCatalogs.validate()
+                            if (!catalogsValid) return
+                        }
 
                         const cliConfig = await this.$config.config
                         const cliCommands = await this.cliCommands as Record<string, (args?: any) => Promise<void>>

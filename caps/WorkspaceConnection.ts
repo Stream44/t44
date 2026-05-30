@@ -270,6 +270,30 @@ export async function capsule({
                 getConfigValue: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, key: string): Promise<any> {
+                        // promptFactId is the key under which test/workspace env
+                        // configs can route an env var into this connection
+                        // value (see WorkspacePrompt.getEnvValueForFactReference).
+                        const promptFactId = `${this.capsuleName}:${key}`
+
+                        // ENV var takes precedence over every other source so
+                        // CI / test runs can inject credentials without
+                        // touching the encrypted config on disk and without
+                        // depending on Mapping options being wired through.
+                        const envValue = this.WorkspacePrompt.getEnvValueForFactReference(promptFactId)
+                        if (envValue !== undefined) {
+                            return envValue
+                        }
+
+                        // A struct extending WorkspaceConnection may declare schema-defined keys
+                        // as its own Literal properties so they can be set via Mapping options
+                        // (e.g. for tests or non-secret config). Prefer those over stored values
+                        // when set, but only for keys actually in the schema — otherwise we'd
+                        // shadow internal capsule properties like capsuleName.
+                        const schemaProperties = this.schema?.schema?.properties
+                        if (schemaProperties && schemaProperties[key] && this[key] !== undefined) {
+                            return this[key]
+                        }
+
                         const storedConfig = await this.getStoredConfig() || {}
 
                         if (storedConfig[key] !== undefined) {
@@ -277,13 +301,10 @@ export async function capsule({
                         }
 
                         // Value not set, need to prompt user
-                        const propertySchema = this.schema?.schema?.properties?.[key]
+                        const propertySchema = schemaProperties?.[key]
                         if (!propertySchema) {
                             throw new Error(`No schema defined for config key "${key}" in ${this.capsuleName} connection config`)
                         }
-
-                        // Create promptFactId for deduplication
-                        const promptFactId = `${this.capsuleName}:${key}`
 
                         // Show title once per capsuleName
                         const chalk = (await import('chalk')).default

@@ -283,11 +283,17 @@ export async function capsule({
                                 console.log(chalk.gray(`  ○ Tag ${tag} already exists on remote at current commit, skipping\n`))
                                 return
                             }
-                            console.log(chalk.yellow(`\n  Tag ${tag} exists on remote at ${remoteTag.commit!.slice(0, 8)} but HEAD is ${headCommit.slice(0, 8)}\n`))
-                            const diffText = await this.ProjectRepository.diff({ rootDir: stageDir, from: remoteTag.commit! })
-                            if (diffText.length > 0) {
-                                console.log(diffText)
+                            console.log(chalk.yellow(`\n  Tag ${tag} exists on remote at ${remoteTag.commit!.slice(0, 8)} but HEAD is ${headCommit.slice(0, 8)}`))
+                            // Show commits between the tagged commit and HEAD
+                            const logResult = await $`git log --oneline ${remoteTag.commit!}..HEAD`.cwd(stageDir).quiet().nothrow()
+                            const logText = logResult.text().trim()
+                            if (logText.length > 0) {
+                                console.log(chalk.gray(`  Commits since ${tag}:`))
+                                for (const line of logText.split('\n')) {
+                                    console.log(chalk.gray(`    ${line}`))
+                                }
                             }
+                            console.log('')
                             throw new Error(
                                 `Git tag '${tag}' already exists on remote but points to a different commit.\n` +
                                 `  Please bump to a different version before pushing.`

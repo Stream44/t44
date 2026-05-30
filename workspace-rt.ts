@@ -14,7 +14,15 @@ import { TimingObserver } from "@stream44.studio/encapsulate/spine-factories/Tim
 async function findWorkspaceRoot(): Promise<string> {
     const isInitCommand = process.argv.includes('init')
     const hasAtFlag = process.argv.includes('--at')
-    if (isInitCommand && !hasAtFlag) {
+    // Don't auto-scaffold `.workspace/workspace.yaml` when the user is just
+    // asking for help — otherwise `t44 init --help` (or `t44 help init`)
+    // pollutes the cwd with a stub workspace, which then traps subsequent
+    // commands into treating that cwd as the workspace root.
+    const isHelpMode =
+        process.argv.includes('--help')
+        || process.argv.includes('-h')
+        || process.argv[2] === 'help'
+    if (isInitCommand && !hasAtFlag && !isHelpMode) {
         const { mkdir, writeFile, access: fsAccess } = await import('fs/promises')
         const workspaceDir = join(process.cwd(), '.workspace')
         const workspaceConfigPath = join(workspaceDir, 'workspace.yaml')

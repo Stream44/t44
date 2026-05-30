@@ -476,6 +476,77 @@ export async function capsule({
                         }
 
                         // ══════════════════════════════════════════════════════
+                        // INTERNAL: Sync source version from remote tags
+                        // Before bumping, fetch remote tags via git ls-remote
+                        // and update the source package.json if the remote has
+                        // a newer version tag. This prevents creating duplicate
+                        // tags when the local source version falls behind.
+                        // ══════════════════════════════════════════════════════
+                        if (shouldBumpVersions) {
+                            const semver = (await import('semver')).default
+
+                            for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                                const providers = resolveRepoProviders(repoConfig as any, globalProviders)
+                                const gitProvider = providers.find((p: any) => p.capsule === '@stream44.studio/t44/caps/patterns/git-scm.com/ProjectPublishing')
+                                if (!gitProvider) continue
+
+                                const originUri = gitProvider.config?.RepositorySettings?.origin
+                                if (!originUri) continue
+
+                                // Fetch tags directly from remote (no clone needed)
+                                const tagsResult = await this.lib.$`git ls-remote --tags ${originUri}`.quiet().nothrow()
+                                if (tagsResult.exitCode !== 0) continue
+
+                                const tagLines = tagsResult.text().trim().split('\n').filter(Boolean)
+                                const versions = tagLines
+                                    .map((line: string) => {
+                                        const ref = line.split('\t')[1] || ''
+                                        // Skip ^{} dereferenced tag refs
+                                        if (ref.endsWith('^{}')) return null
+                                        const match = ref.match(/refs\/tags\/v(.+)$/)
+                                        return match ? match[1] : null
+                                    })
+                                    .filter((v: string | null): v is string => v !== null && semver.valid(v) !== null)
+                                    .sort((a: string, b: string) => semver.rcompare(a, b))
+
+                                if (versions.length === 0) continue
+
+                                const latestRemoteVersion = versions[0]
+
+                                // Check stage source version
+                                const repoSourceDir = stageSourceDirs.get(repoName)!
+                                const srcPkgPath = this.lib.path.join(repoSourceDir, 'package.json')
+                                try {
+                                    const srcContent = await this.lib.fs.readFile(srcPkgPath, 'utf-8')
+                                    const srcPkg = JSON.parse(srcContent)
+
+                                    if (semver.lt(srcPkg.version, latestRemoteVersion)) {
+                                        console.log(this.lib.chalk.yellow(`  ⟳ '${repoName}' source version ${srcPkg.version} is behind remote v${latestRemoteVersion} — syncing`))
+
+                                        // Update stage source
+                                        srcPkg.version = latestRemoteVersion
+                                        const indent = srcContent.match(/^\{\s*\n([ \t]+)/)?.[1]?.length || 4
+                                        await this.lib.fs.writeFile(srcPkgPath, JSON.stringify(srcPkg, null, indent) + '\n')
+
+                                        // Update original workspace source
+                                        const originalSourceDir = (repoConfig as any).sourceDir
+                                        if (originalSourceDir) {
+                                            const origPkgPath = this.lib.path.join(originalSourceDir, 'package.json')
+                                            try {
+                                                const origContent = await this.lib.fs.readFile(origPkgPath, 'utf-8')
+                                                const origPkg = JSON.parse(origContent)
+                                                origPkg.version = latestRemoteVersion
+                                                const origIndent = origContent.match(/^\{\s*\n([ \t]+)/)?.[1]?.length || 4
+                                                await this.lib.fs.writeFile(origPkgPath, JSON.stringify(origPkg, null, origIndent) + '\n')
+                                            } catch {}
+                                        }
+                                        console.log(this.lib.chalk.green(`  ✓ Synced to v${latestRemoteVersion}\n`))
+                                    }
+                                } catch {}
+                            }
+                        }
+
+                        // ══════════════════════════════════════════════════════
                         // STEP 3: bump — bump versions via providers
                         // ══════════════════════════════════════════════════════
                         const bumpedRepos = new Set<string>()

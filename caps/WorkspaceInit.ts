@@ -352,6 +352,24 @@ export async function capsule({
 
                         const sourceConfig = parseYaml(sourceContent) as Record<string, any>
 
+                        // Validate source workspace has the configs we need to
+                        // copy. Without these, the new workspace would be born
+                        // disconnected from the registry / rack.
+                        const requiredKeys = [
+                            '#@stream44.studio/t44/structs/HomeRegistryConfig',
+                            '#@stream44.studio/t44/structs/ProjectRackConfig',
+                        ]
+                        const missingKeys = requiredKeys.filter(k => !sourceConfig[k])
+                        if (missingKeys.length > 0) {
+                            console.error(chalk.red(`\n✗ Cannot use this workspace as a template — required config blocks are missing:\n`))
+                            for (const k of missingKeys) console.error(chalk.red(`    ${k}`))
+                            console.error(chalk.red(`\n  Source: ${sourceConfigPath}\n`))
+                            console.error(chalk.red(`  This usually means the current directory is a stub workspace `
+                                + `(e.g. created by an earlier aborted 'init'). Remove its '.workspace/' directory `
+                                + `and run from a fully initialized workspace, or run 't44 init' there first.\n`))
+                            process.exit(1)
+                        }
+
                         // Ensure target directory and workspace scaffold exist
                         const { mkdir, writeFile } = await import('fs/promises')
                         const targetWorkspaceDir = join(resolvedAt, '.workspace')

@@ -1,4 +1,126 @@
+
+// NOTE: Spawning processes with 'pipe' may fail due to a bug when run via 'bun test'.
+//       See: https://github.com/oven-sh/bun/issues/24690
+//       This test harness replaces ./ProjectTest.ts so we can run tests via 'bun'.
+// NOTE: Using 'spawn' from 'child_process' module works with 'pipe' even when run via 'bun test'.
+
 import type * as BunTest from 'bun:test'
+import { expect } from 'bun:test'
+import chalk from 'chalk'
+
+// ── Standalone test harness ─────────────────────────────────────────
+// Implements the bun:test interface (describe, it, expect, beforeAll, etc.)
+// for running tests via plain `bun` without the bun test runner.
+// Tests are collected synchronously, then executed sequentially via
+// setTimeout(0) after all describe blocks have been registered.
+
+type TestEntry = { suite: string[], name: string, fn: () => void | Promise<void>, timeout?: number, skip?: boolean }
+type HookEntry = { suite: string[], fn: () => void | Promise<void> }
+
+const _tests: TestEntry[] = []
+const _beforeAlls: HookEntry[] = []
+const _afterAlls: HookEntry[] = []
+let _currentSuite: string[] = []
+let _runScheduled = false
+
+function scheduleRun() {
+    if (_runScheduled) return
+    _runScheduled = true
+    setTimeout(async () => {
+        let passed = 0, failed = 0, skipped = 0
+
+        // Group tests by suite for beforeAll execution
+        const ranBeforeAll = new Set<string>()
+        for (const t of _tests) {
+            const suiteKey = t.suite.join(' > ')
+            if (!ranBeforeAll.has(suiteKey)) {
+                ranBeforeAll.add(suiteKey)
+                // Run matching beforeAlls (exact match or parent suite)
+                for (const ba of _beforeAlls) {
+                    const baKey = ba.suite.join(' > ')
+                    if (suiteKey === baKey || suiteKey.startsWith(baKey + ' > ') || baKey === '') {
+                        try { await ba.fn() } catch (err: any) {
+                            console.log(chalk.red(`✗ beforeAll for "${suiteKey}" failed: ${err?.message || err}`))
+                        }
+                    }
+                }
+            }
+        }
+
+        for (const t of _tests) {
+            const label = [...t.suite, t.name].join(' > ')
+            if (t.skip) { skipped++; console.log(chalk.gray(`⊘ ${label} [skipped]`)); continue }
+            try {
+                const timeoutMs = t.timeout || 30_000
+                const result = await Promise.race([
+                    Promise.resolve(t.fn()).then(() => 'ok' as const),
+                    new Promise<'timeout'>(r => setTimeout(() => r('timeout'), timeoutMs))
+                ])
+                if (result === 'timeout') {
+                    failed++
+                    console.log(chalk.red(`✗ ${label} [timed out after ${timeoutMs}ms]`))
+                } else {
+                    passed++
+                    console.log(chalk.green(`✓ ${label}`))
+                }
+            } catch (err: any) {
+                failed++
+                console.log(chalk.red(`✗ ${label}`))
+                console.log(chalk.red(`  ${err?.message || err}`))
+            }
+        }
+
+        for (const aa of _afterAlls) {
+            try { await aa.fn() } catch { }
+        }
+
+        console.log(`\n${passed} pass, ${failed} fail, ${skipped} skip`)
+        console.log(`Ran ${_tests.length} tests.`)
+        if (failed > 0) process.exitCode = 1
+        // Force exit — capsule resources (UDP sockets, watchers, etc.) may
+        // keep the event loop alive indefinitely after tests complete.
+        process.exit(process.exitCode ?? 0)
+    }, 0)
+}
+
+const standaloneDescribe: any = (name: string, fn: () => void) => {
+    _currentSuite.push(name)
+    fn()
+    _currentSuite.pop()
+    scheduleRun()
+}
+standaloneDescribe.skip = (_name: string, _fn: () => void) => { }
+
+const standaloneIt: any = (name: string, fn: () => void | Promise<void>, options?: number | any) => {
+    const timeout = typeof options === 'number' ? options : options?.timeout
+    _tests.push({ suite: [..._currentSuite], name, fn, timeout })
+}
+standaloneIt.skip = (name: string, _fn: () => void | Promise<void>) => {
+    _tests.push({ suite: [..._currentSuite], name, fn: () => { }, skip: true })
+}
+
+const standaloneTest: any = standaloneIt
+standaloneTest.skip = standaloneIt.skip
+
+const standaloneBeforeAll = (fn: () => void | Promise<void>, _options?: any) => {
+    _beforeAlls.push({ suite: [..._currentSuite], fn })
+}
+const standaloneAfterAll = (fn: () => void | Promise<void>, _options?: any) => {
+    _afterAlls.push({ suite: [..._currentSuite], fn })
+}
+const standaloneBeforeEach = (_fn: () => void | Promise<void>) => { }
+const standaloneAfterEach = (_fn: () => void | Promise<void>) => { }
+
+const standaloneBunTest = {
+    describe: standaloneDescribe,
+    it: standaloneIt,
+    test: standaloneTest,
+    expect,
+    beforeAll: standaloneBeforeAll,
+    afterAll: standaloneAfterAll,
+    beforeEach: standaloneBeforeEach,
+    afterEach: standaloneAfterEach,
+} as any as typeof BunTest
 
 // Global cache for loaded env files (this is fine as a cache)
 const loadedEnvFiles = new Set<string>()
@@ -22,7 +144,7 @@ export async function capsule({
                 },
                 bunTest: {
                     type: CapsulePropertyTypes.Literal,
-                    value: undefined as any as typeof BunTest,
+                    value: standaloneBunTest,
                 },
                 env: {
                     type: CapsulePropertyTypes.Literal,
@@ -113,10 +235,27 @@ export async function capsule({
                         await Bun.$`sh -c 'rm -rf ${dir}/* ${dir}/.[!.]* ${dir}/..?* 2>/dev/null || true'`.quiet()
                     }
                 },
+                RejectBunTestRunner: {
+                    type: CapsulePropertyTypes.Init,
+                    value: function (this: any) {
+                        let insideBunTest = false
+                        try {
+                            (require('bun:test') as any).afterAll(() => { })
+                            insideBunTest = true
+                        } catch { }
+                        if (insideBunTest) {
+                            console.error(chalk.red(
+                                '\n  ERROR: ProjectTestStandalone must be run via `bun <file>`, not `bun test <file>`.\n' +
+                                '  Use ProjectTest instead if you need the bun test runner.\n' +
+                                '  See: https://github.com/oven-sh/bun/issues/24690\n'
+                            ))
+                            process.exit(1)
+                        }
+                    }
+                },
                 EnsureEmptyWorkbenchDir: {
                     type: CapsulePropertyTypes.Init,
                     value: async function (this: any) {
-                        // Only run if bunTest is available (test mode)
                         if (!this.bunTest) return
                         await this.emptyWorkbenchDir()
                     }

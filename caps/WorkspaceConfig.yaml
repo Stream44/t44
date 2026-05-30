@@ -20,6 +20,9 @@ extends:
       activate:
         capsule: "@stream44.studio/t44/caps/WorkspaceShell"
         description: Generate environment variables for sourcing into shells.
+      diff:
+        capsule: "@stream44.studio/t44/caps/WorkspaceDiff"
+        description: Show pending git changes across all projects, grouped by project.
       info:
         capsule: "@stream44.studio/t44/caps/WorkspaceInfo"
         description: Display information about the workspace.
@@ -54,6 +57,8 @@ extends:
           linux:
             short: l
             description: Run tests inside a Linux VM (OrbStack) instead of natively on macOS.
+          cooldown:
+            description: Skip the normal test body and run coolDown blocks instead (releases warmUp-cached resources).
       dev:
         capsule: "@stream44.studio/t44/caps/ProjectDevelopment"
         description: Run a project or package dev server.
@@ -108,5 +113,8 @@ extends:
         options:
           deprovision:
             description: Delete the project from the provider instead of deploying it
+          diff:
+            value: required
+            description: Show diff of workspace.yaml config vs. live provider state for the named provider capsule (no deploy). e.g. --diff "@stream44.studio/t44-bunny.net/caps/EdgeDockerWebsite/ProjectDeployment"
   createdAt: "2026-02-11T01:01:49.797Z"
   updatedAt: "2026-02-11T01:01:49.797Z"

@@ -28,6 +28,19 @@ export async function capsule({
                     value: '@stream44.studio/t44/caps/WorkspaceLib',
                 },
 
+                /**
+                 * Root of the `.~o/` cache directory, derived from
+                 * `spineFilesystemRoot` (set on the base Capsule struct
+                 * by the runtime). All capsule-specific caches and
+                 * operational data live under this path.
+                 */
+                originCacheRoot: {
+                    type: CapsulePropertyTypes.GetterFunction,
+                    value: function (this: any): string {
+                        return this.lib.path.join(this['#@stream44.studio/encapsulate/structs/Capsule'].spineFilesystemRoot, '.~o');
+                    },
+                },
+
                 _rootTasks: {
                     type: CapsulePropertyTypes.Literal,
                     value: [] as Task[],
@@ -48,6 +61,23 @@ export async function capsule({
                     value: true,
                 },
 
+                _autoRunScheduled: {
+                    type: CapsulePropertyTypes.Literal,
+                    value: false,
+                },
+
+                _scheduleAutoRun: {
+                    type: CapsulePropertyTypes.Function,
+                    value: function (this: any) {
+                        if (this._autoRunScheduled) return;
+                        this._autoRunScheduled = true;
+                        process.nextTick(() => {
+                            this._autoRunScheduled = false;
+                            this._runInternal();
+                        });
+                    }
+                },
+
                 serial: {
                     type: CapsulePropertyTypes.Function,
                     value: function (this: any, name: string, fn: () => void | Promise<void>) {
@@ -62,6 +92,7 @@ export async function capsule({
                             this._currentParent.children.push(task);
                         } else {
                             this._rootTasks.push(task);
+                            this._scheduleAutoRun();
                         }
 
                         const previousParent = this._currentParent;
@@ -85,6 +116,7 @@ export async function capsule({
                             this._currentParent.children.push(task);
                         } else {
                             this._rootTasks.push(task);
+                            this._scheduleAutoRun();
                         }
 
                         const previousParent = this._currentParent;
@@ -109,6 +141,7 @@ export async function capsule({
                             this._currentParent.children.push(task);
                         } else {
                             this._rootTasks.push(task);
+                            this._scheduleAutoRun();
                         }
                     }
                 },
@@ -127,6 +160,7 @@ export async function capsule({
                             magenta: '\x1b[35m',
                             green: '\x1b[32m',
                             red: '\x1b[31m',
+                            gray: '\x1b[90m',
                         };
 
                         let startSymbol = '▶';
@@ -144,6 +178,7 @@ export async function capsule({
                         }
 
                         console.log(`${color}${startSymbol} ${trail}${colors.reset}`);
+                        const startTime = Date.now();
 
                         try {
                             if (task.type === 'serial') {
@@ -155,9 +190,17 @@ export async function capsule({
                             } else {
                                 await task.fn();
                             }
-                            console.log(`${colors.green}✓ ${trail}${colors.reset}`);
+                            const elapsed = Date.now() - startTime;
+                            const timeStr = elapsed < 1000
+                                ? `${Math.round(elapsed)}ms`
+                                : `${(elapsed / 1000).toFixed(2)}s`;
+                            console.log(`${colors.green}✓ ${trail} ${colors.gray}[${timeStr}]${colors.reset}`);
                         } catch (error) {
-                            console.log(`${colors.red}✗ ${trail}${colors.reset}`);
+                            const elapsed = Date.now() - startTime;
+                            const timeStr = elapsed < 1000
+                                ? `${Math.round(elapsed)}ms`
+                                : `${(elapsed / 1000).toFixed(2)}s`;
+                            console.log(`${colors.red}✗ ${trail} ${colors.gray}[${timeStr}]${colors.reset}`);
                             throw error;
                         } finally {
                             this._breadcrumb = previousBreadcrumb;
@@ -165,7 +208,7 @@ export async function capsule({
                     }
                 },
 
-                run: {
+                _runInternal: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any): Promise<void> {
                         try {
@@ -179,6 +222,13 @@ export async function capsule({
                         }
 
                         if (this.exitOnComplete) process.exit(0);
+                    }
+                },
+
+                run: {
+                    type: CapsulePropertyTypes.Function,
+                    value: function (this: any): never {
+                        throw new Error('TaskWorkflow.run() is no longer required. Tasks are automatically executed on the next tick after registration.');
                     }
                 },
             }

@@ -140,10 +140,21 @@ export async function capsule({
                                     }
                                 }
 
+                                // Fallback: deployments that don't reference any
+                                // local source (e.g. registrar-only or DNS-only
+                                // deployments) can still be attached to a project
+                                // by naming convention — the deployment key must
+                                // match a known project name.
+                                if (!mappedProject && projects[deploymentName]) {
+                                    mappedProject = deploymentName
+                                }
+
                                 if (!mappedProject) {
                                     throw new Error(
                                         `Deployment '${deploymentName}' does not map to any workspace project.\n` +
-                                        `  Ensure at least one alias has a valid sourceDir pointing to a project directory.\n` +
+                                        `  Either:\n` +
+                                        `    (a) give at least one alias a 'sourceDir' under an existing project, or\n` +
+                                        `    (b) name the deployment exactly the same as an existing project.\n` +
                                         `  Known projects: ${Object.keys(projects).join(', ')}\n` +
                                         `  Fix in: ${configFilepath}`
                                     )
@@ -482,20 +493,25 @@ export async function capsule({
                         }
 
                         for (const [projectName, projectAliases] of Object.entries(deployments)) {
-                            for (const [alias, aliasConfig] of Object.entries(projectAliases as Record<string, any>)) {
-                                if (aliasConfig.sourceDir) {
-                                    const sourceDirPath = resolve(aliasConfig.sourceDir)
-                                    const rel = relative(targetPath, sourceDirPath)
-
-                                    const isWithinOrEqual = rel === '' || !rel.startsWith('..')
-
-                                    if (isWithinOrEqual) {
-                                        if (!matchingDeployments[projectName]) {
-                                            matchingDeployments[projectName] = {}
-                                        }
-                                        matchingDeployments[projectName][alias] = aliasConfig
-                                    }
+                            const aliases = projectAliases as Record<string, any>
+                            // A project matches if ANY of its aliases has a sourceDir
+                            // within (or equal to) targetPath. When it matches, we
+                            // include ALL aliases of that project — aliases without a
+                            // sourceDir (e.g. a `dns` alias that just `depends: [image]`)
+                            // are part of the same logical deployment graph.
+                            let projectMatches = false
+                            for (const aliasConfig of Object.values(aliases)) {
+                                if (!aliasConfig.sourceDir) continue
+                                const sourceDirPath = resolve(aliasConfig.sourceDir)
+                                const rel = relative(targetPath, sourceDirPath)
+                                const isWithinOrEqual = rel === '' || !rel.startsWith('..')
+                                if (isWithinOrEqual) {
+                                    projectMatches = true
+                                    break
                                 }
+                            }
+                            if (projectMatches) {
+                                matchingDeployments[projectName] = aliases
                             }
                         }
 

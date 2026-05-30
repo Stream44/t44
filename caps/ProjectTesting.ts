@@ -90,8 +90,24 @@ export async function capsule({
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { args }: any): Promise<void> {
 
-                        const { projectSelector, parallel, timeout: timeoutStr, linux } = args
+                        const { projectSelector, parallel, timeout: timeoutStr, linux, cooldown } = args
                         const timeoutSeconds = timeoutStr ? parseInt(timeoutStr, 10) : 0
+                        const cooldownMode = cooldown === true
+
+                        // If the selector points directly at a test file (e.g.
+                        // `t44 test path/to/Foo.test.ts`), remember the file so
+                        // we can spawn `bun test <file>` instead of running every
+                        // test in the package via `bun run test`.
+                        let selectorTestFile: string | null = null
+                        if (projectSelector) {
+                            const resolvedSelector = this.lib.path.resolve(process.cwd(), projectSelector)
+                            try {
+                                const s = await this.lib.fs.stat(resolvedSelector)
+                                if (s.isFile() && /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(resolvedSelector)) {
+                                    selectorTestFile = resolvedSelector
+                                }
+                            } catch { /* not a path that exists */ }
+                        }
 
                         const projects = await this.WorkspaceProjects.list
 
@@ -743,22 +759,37 @@ export async function capsule({
                         }
 
                         // ── Spawn helper: local or Linux VM ──────────────────
+                        const childEnv = {
+                            ...process.env,
+                            ...(cooldownMode ? { T44_TEST_COOLDOWN: '1' } : {}),
+                        }
                         const spawnTestProcess = (target: RunnableTarget, testCwd: string) => {
                             const linuxStageDir = linuxStageDirs.get(target.label)
                             if (linux && linuxStageDir) {
                                 const vmName = linuxVmNamesMap.get(target.label) || `t44-test-${target.packageName || target.label}`
-                                const cmd = `cd ${linuxStageDir} && $HOME/.bun/bin/bun run test`
+                                const fileOverride = selectorTestFile
+                                    ? ` bun test ${this.lib.path.basename(selectorTestFile)}`
+                                    : ' bun run test'
+                                const envExports = cooldownMode ? 'export T44_TEST_COOLDOWN=1; ' : ''
+                                const cmd = `cd ${linuxStageDir} && ${envExports}$HOME/.bun/bin/${fileOverride.trimStart()}`
                                 return Bun.spawn(['orb', '-m', vmName, 'bash', '-c', cmd], {
                                     stdin: 'pipe',
                                     stdout: 'pipe',
-                                    stderr: 'pipe'
+                                    stderr: 'pipe',
                                 })
                             }
-                            return Bun.spawn(['bun', 'run', 'test'], {
+                            // Specific file selector: `bun test <file>` runs ONLY
+                            // that test file, skipping every other test in the
+                            // package. The package's `npm test` script is bypassed.
+                            const argv = selectorTestFile
+                                ? ['bun', 'test', selectorTestFile]
+                                : ['bun', 'run', 'test']
+                            return Bun.spawn(argv, {
                                 cwd: testCwd,
                                 stdin: 'pipe',
                                 stdout: 'pipe',
-                                stderr: 'pipe'
+                                stderr: 'pipe',
+                                env: childEnv,
                             })
                         }
 
@@ -776,10 +807,20 @@ export async function capsule({
 
                             const linuxStageDir = linuxStageDirs.get(target.label)
                             const modeTag = linux && linuxStageDir ? ' ' + this.lib.chalk.blue('[linux]') : ''
+                            const cooldownTag = cooldownMode ? ' ' + this.lib.chalk.blue('[cooldown]') : ''
+                            const fileTag = selectorTestFile ? ' ' + this.lib.chalk.gray(`[file: ${this.lib.path.basename(selectorTestFile)}]`) : ''
 
-                            console.log(this.lib.chalk.green(`\n=> Running tests for ${target.label} ${typeTag}${modeTag}\n`))
+                            console.log(this.lib.chalk.green(`\n=> Running tests for ${target.label} ${typeTag}${modeTag}${cooldownTag}${fileTag}\n`))
                             console.log(this.lib.chalk.gray(`   Directory: ${linuxStageDir || testCwd}`))
-                            console.log(this.lib.chalk.gray(`   Script:    ${target.script}\n`))
+                            if (selectorTestFile) {
+                                console.log(this.lib.chalk.gray(`   File:      ${selectorTestFile}`))
+                            } else {
+                                console.log(this.lib.chalk.gray(`   Script:    ${target.script}`))
+                            }
+                            if (cooldownMode) {
+                                console.log(this.lib.chalk.gray(`   Mode:      cooldown — runs coolDown blocks, clears warmUp cache`))
+                            }
+                            console.log('')
 
                             skipRequested = false
 
@@ -838,8 +879,10 @@ export async function capsule({
 
                             const linuxStageDir = linuxStageDirs.get(target.label)
                             const modeTag = linux && linuxStageDir ? ' ' + this.lib.chalk.blue('[linux]') : ''
+                            const cooldownTag = cooldownMode ? ' ' + this.lib.chalk.blue('[cooldown]') : ''
+                            const fileTag = selectorTestFile ? ' ' + this.lib.chalk.gray(`[file: ${this.lib.path.basename(selectorTestFile)}]`) : ''
 
-                            console.log(this.lib.chalk.green(`\n=> Running tests for ${target.label} ${typeTag}${modeTag}\n`))
+                            console.log(this.lib.chalk.green(`\n=> Running tests for ${target.label} ${typeTag}${modeTag}${cooldownTag}${fileTag}\n`))
                             console.log(this.lib.chalk.gray(`   Directory: ${linuxStageDir || testCwd}\n`))
 
                             const proc = spawnTestProcess(target, testCwd)
