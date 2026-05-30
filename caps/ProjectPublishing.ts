@@ -451,36 +451,38 @@ export async function capsule({
                         }
 
                         // ══════════════════════════════════════════════════════
-                        // INTERNAL: Sync source directories to stage repos
+                        // INTERNAL: Sync workspace source → source stage
+                        // The source stage is a local git repo that stores the
+                        // raw workspace source (workspace names, workspace:* deps).
+                        // Change detection runs against this repo.
                         // ══════════════════════════════════════════════════════
-                        console.log('[t44] Syncing source directories to stage repos ...\n')
-                        const stageSourceDirs: Map<string, string> = new Map()
+                        console.log('[t44] Syncing source directories to source stage ...\n')
+                        const sourceStageDirs: Map<string, string> = new Map()
 
                         for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                             const projectSourceDir = this.lib.path.join((repoConfig as any).sourceDir)
-                            const repoSourceDir = await this.ProjectRepository.getStagePath({ repoUri: repoName })
+                            const sourceStageDir = await this.ProjectRepository.getSourceStagePath({ repoUri: repoName })
 
-                            await this.ProjectRepository.init({ rootDir: repoSourceDir })
-                            await this.ProjectRepository.reset({ rootDir: repoSourceDir })
+                            await this.ProjectRepository.init({ rootDir: sourceStageDir })
+                            await this.ProjectRepository.reset({ rootDir: sourceStageDir })
 
                             const gitignorePath = this.lib.path.join(projectSourceDir, '.gitignore')
                             await this.ProjectRepository.sync({
-                                rootDir: repoSourceDir,
+                                rootDir: sourceStageDir,
                                 sourceDir: projectSourceDir,
                                 gitignorePath,
                                 excludePatterns: repositoriesConfig.alwaysIgnore || []
                             })
 
-                            stageSourceDirs.set(repoName, repoSourceDir)
-                            console.log(`=> Synced '${repoName}' to: ${repoSourceDir}\n`)
+                            sourceStageDirs.set(repoName, sourceStageDir)
+                            console.log(`=> Source stage '${repoName}': ${sourceStageDir}\n`)
                         }
 
                         // ══════════════════════════════════════════════════════
                         // INTERNAL: Sync source version from remote tags
                         // Before bumping, fetch remote tags via git ls-remote
-                        // and update the source package.json if the remote has
-                        // a newer version tag. This prevents creating duplicate
-                        // tags when the local source version falls behind.
+                        // and update the source stage + workspace source if the
+                        // remote has a newer version tag.
                         // ══════════════════════════════════════════════════════
                         if (shouldBumpVersions) {
                             const semver = (await import('semver')).default
@@ -493,7 +495,6 @@ export async function capsule({
                                 const originUri = gitProvider.config?.RepositorySettings?.origin
                                 if (!originUri) continue
 
-                                // Fetch tags directly from remote (no clone needed)
                                 const tagsResult = await this.lib.$`git ls-remote --tags ${originUri}`.quiet().nothrow()
                                 if (tagsResult.exitCode !== 0) continue
 
@@ -501,7 +502,6 @@ export async function capsule({
                                 const versions = tagLines
                                     .map((line: string) => {
                                         const ref = line.split('\t')[1] || ''
-                                        // Skip ^{} dereferenced tag refs
                                         if (ref.endsWith('^{}')) return null
                                         const match = ref.match(/refs\/tags\/v(.+)$/)
                                         return match ? match[1] : null
@@ -512,10 +512,8 @@ export async function capsule({
                                 if (versions.length === 0) continue
 
                                 const latestRemoteVersion = versions[0]
-
-                                // Check stage source version
-                                const repoSourceDir = stageSourceDirs.get(repoName)!
-                                const srcPkgPath = this.lib.path.join(repoSourceDir, 'package.json')
+                                const sourceStageDir = sourceStageDirs.get(repoName)!
+                                const srcPkgPath = this.lib.path.join(sourceStageDir, 'package.json')
                                 try {
                                     const srcContent = await this.lib.fs.readFile(srcPkgPath, 'utf-8')
                                     const srcPkg = JSON.parse(srcContent)
@@ -523,12 +521,12 @@ export async function capsule({
                                     if (semver.lt(srcPkg.version, latestRemoteVersion)) {
                                         console.log(this.lib.chalk.yellow(`  ⟳ '${repoName}' source version ${srcPkg.version} is behind remote v${latestRemoteVersion} — syncing`))
 
-                                        // Update stage source
+                                        // Update source stage
                                         srcPkg.version = latestRemoteVersion
                                         const indent = srcContent.match(/^\{\s*\n([ \t]+)/)?.[1]?.length || 4
                                         await this.lib.fs.writeFile(srcPkgPath, JSON.stringify(srcPkg, null, indent) + '\n')
 
-                                        // Update original workspace source
+                                        // Update workspace source
                                         const originalSourceDir = (repoConfig as any).sourceDir
                                         if (originalSourceDir) {
                                             const origPkgPath = this.lib.path.join(originalSourceDir, 'package.json')
@@ -547,7 +545,9 @@ export async function capsule({
                         }
 
                         // ══════════════════════════════════════════════════════
-                        // STEP 3: bump — bump versions via providers
+                        // STEP 3: bump — detect changes and bump versions
+                        // Change detection uses the source stage (workspace
+                        // names only, no transforms). This is apples-to-apples.
                         // ══════════════════════════════════════════════════════
                         const bumpedRepos = new Set<string>()
 
@@ -559,9 +559,9 @@ export async function capsule({
                             console.log('[t44] Bumping versions ...\n')
 
                             for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
-                                const repoSourceDir = stageSourceDirs.get(repoName)!
+                                const sourceStageDir = sourceStageDirs.get(repoName)!
 
-                                const hasChanges = await this.ProjectRepository.hasChanges({ rootDir: repoSourceDir })
+                                const hasChanges = await this.ProjectRepository.hasChanges({ rootDir: sourceStageDir })
                                 if (!hasChanges) {
                                     console.log(`=> Skipping bump for '${repoName}' (no changes)\n`)
                                     continue
@@ -572,14 +572,14 @@ export async function capsule({
                                 const ctx = {
                                     repoName,
                                     repoConfig,
-                                    repoSourceDir,
+                                    repoSourceDir: sourceStageDir,
                                     options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                     metadata: {} as Record<string, any>,
                                     bumpedRepos,
                                     alwaysIgnore: repositoriesConfig.alwaysIgnore || [],
                                     publishingApi,
                                 }
-                                await callProvidersForRepo('bump', repoName, repoConfig, repoSourceDir, ctx)
+                                await callProvidersForRepo('bump', repoName, repoConfig, sourceStageDir, ctx)
 
                                 if (ctx.metadata.bumped) {
                                     bumpedRepos.add(repoName)
@@ -590,13 +590,51 @@ export async function capsule({
                         }
 
                         // ══════════════════════════════════════════════════════
-                        // INTERNAL: Apply renames and resolve workspace deps
-                        // (cross-repo operation — not a per-provider lifecycle step)
+                        // INTERNAL: Commit source stage
+                        // Records the current workspace source state (with
+                        // bumped version if applicable). Next run's hasChanges
+                        // compares against this commit.
                         // ══════════════════════════════════════════════════════
-                        const matchingDirs = new Map(
+                        for (const [repoName] of Object.entries(matchingRepositories)) {
+                            const sourceStageDir = sourceStageDirs.get(repoName)!
+                            await this.ProjectRepository.commit({ rootDir: sourceStageDir, message: bumpedRepos.has(repoName) ? 'bump' : 'sync' })
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Sync source stage → publish stage
+                        // The publish stage is a separate local git repo where
+                        // renames and dependency resolution are applied. This
+                        // keeps the source stage clean for change detection.
+                        // ══════════════════════════════════════════════════════
+                        console.log('[t44] Syncing to publish stage ...\n')
+                        const publishStageDirs: Map<string, string> = new Map()
+
+                        for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
+                            const sourceStageDir = sourceStageDirs.get(repoName)!
+                            const publishStageDir = await this.ProjectRepository.getPublishStagePath({ repoUri: repoName })
+
+                            await this.ProjectRepository.init({ rootDir: publishStageDir })
+                            await this.ProjectRepository.reset({ rootDir: publishStageDir })
+
+                            const gitignorePath = this.lib.path.join(sourceStageDir, '.gitignore')
+                            await this.ProjectRepository.sync({
+                                rootDir: publishStageDir,
+                                sourceDir: sourceStageDir,
+                                gitignorePath,
+                                excludePatterns: repositoriesConfig.alwaysIgnore || []
+                            })
+
+                            publishStageDirs.set(repoName, publishStageDir)
+                        }
+
+                        // ══════════════════════════════════════════════════════
+                        // INTERNAL: Apply renames and resolve workspace deps
+                        // in the publish stage (not the source stage)
+                        // ══════════════════════════════════════════════════════
+                        const publishDirs = new Map(
                             Object.keys(matchingRepositories)
-                                .filter(name => stageSourceDirs.has(name))
-                                .map(name => [name, stageSourceDirs.get(name)!])
+                                .filter(name => publishStageDirs.has(name))
+                                .map(name => [name, publishStageDirs.get(name)!])
                         )
                         const renameProviders = resolveRepoProviders(
                             Object.values(matchingRepositories)[0] || {},
@@ -606,31 +644,32 @@ export async function capsule({
                             const provider = await getProvider(providerConfig.capsule)
                             if (typeof provider.rename === 'function') {
                                 await provider.rename({
-                                    dirs: matchingDirs.values(),
-                                    repos: Object.fromEntries(matchingDirs)
+                                    dirs: publishDirs.values(),
+                                    repos: Object.fromEntries(publishDirs)
                                 })
                             }
                         }
 
                         // ══════════════════════════════════════════════════════
-                        // INTERNAL: Commit bumped versions to stage repos
+                        // INTERNAL: Commit publish stage
+                        // Records the transformed state (renamed, deps resolved).
+                        // This provides an audit trail even when not published.
                         // ══════════════════════════════════════════════════════
-                        if (shouldBumpVersions && !bump) {
-                            for (const [repoName] of Object.entries(matchingRepositories)) {
-                                const repoSourceDir = stageSourceDirs.get(repoName)!
-                                await this.ProjectRepository.commit({ rootDir: repoSourceDir, message: 'bump' })
-                            }
+                        for (const [repoName] of Object.entries(matchingRepositories)) {
+                            const publishStageDir = publishStageDirs.get(repoName)!
+                            await this.ProjectRepository.commit({ rootDir: publishStageDir, message: bumpedRepos.has(repoName) ? 'bump' : 'sync' })
                         }
 
                         // ══════════════════════════════════════════════════════
                         // Build per-repo publishing contexts
+                        // Providers receive the publish stage as repoSourceDir
                         // ══════════════════════════════════════════════════════
                         const repoContexts = new Map<string, any>()
                         for (const [repoName, repoConfig] of Object.entries(matchingRepositories)) {
                             repoContexts.set(repoName, {
                                 repoName,
                                 repoConfig,
-                                repoSourceDir: stageSourceDirs.get(repoName)!,
+                                repoSourceDir: publishStageDirs.get(repoName)!,
                                 options: { isDryRun, shouldBumpVersions, rc, release, bump, git, pkg, publishFilter, dangerouslyResetMain, dangerouslyResetGordianOpenIntegrity, dangerouslySquashToCommit, branch: repoEffectiveBranches.get(repoName), yesSignoff },
                                 metadata: {} as Record<string, any>,
                                 bumpedRepos,

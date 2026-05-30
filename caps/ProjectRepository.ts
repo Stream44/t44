@@ -34,6 +34,28 @@ export async function capsule({
                         )
                     }
                 },
+                getSourceStagePath: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { repoUri }: { repoUri: string }): Promise<string> {
+                        const normalizedUri = repoUri.replace(/[\/]/g, '~')
+                        return this.lib.path.join(
+                            this.WorkspaceConfig.workspaceRootDir,
+                            '.~o/workspace.foundation/@stream44.studio~t44~caps~ProjectRepository/source-stage',
+                            normalizedUri
+                        )
+                    }
+                },
+                getPublishStagePath: {
+                    type: CapsulePropertyTypes.Function,
+                    value: async function (this: any, { repoUri }: { repoUri: string }): Promise<string> {
+                        const normalizedUri = repoUri.replace(/[\/]/g, '~')
+                        return this.lib.path.join(
+                            this.WorkspaceConfig.workspaceRootDir,
+                            '.~o/workspace.foundation/@stream44.studio~t44~caps~ProjectRepository/publish-stage',
+                            normalizedUri
+                        )
+                    }
+                },
                 init: {
                     type: CapsulePropertyTypes.Function,
                     value: async function (this: any, { rootDir }: { rootDir: string }): Promise<void> {
